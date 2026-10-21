@@ -45,12 +45,22 @@ jobs:
       - name: Install JS Dependencies
         run: bun install
 
+      - name: Verify updater signing key secret
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::error::GitHub Actions secret TAURI_SIGNING_PRIVATE_KEY is empty or unavailable to this workflow."
+            exit 1
+          fi
+          echo "Updater signing key secret is available."
+
       - name: Build Desktop App via CLI
         if: (matrix.platform == 'windows-latest' && false) || (matrix.platform == 'macos-latest' && true) || (matrix.platform == 'ubuntu-latest' && false)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_PRIVATE_KEY_PASSWORD }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           TAURI_BUILD_FEATURES_FILE: 1
         run: bun run tauri build
 

@@ -1,6 +1,6 @@
 [package]
 name = "pandaflow"
-version = "99.0.1"
+version = "99.0.2"
 description = "PandaFlow - Dein Studium. Zusammen gedacht."
 authors = ["PandaFlow"]
 edition = "2021"
@@ -14,7 +14,7 @@ tauri-build = { version = "2", default-features = false, features = [] }
 
 [dependencies]
 # Deaktiviert den automatischen v1-Legacy-Fallback und die kilometerlangen Feature-Listen
-tauri = { version = "2.1.1", default-features = false, features = [] }
+tauri = { version = "2.1.1", default-features = false, features = ["wry"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 

@@ -1,0 +1,27 @@
+[package]
+name = "pandaflow"
+version = "2.0.0"
+description = "PandaFlow - Dein Studium. Zusammen gedacht."
+authors = ["PandaFlow"]
+edition = "2021"
+
+[lib]
+name = "pandaflow"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", default-features = false, features = [] }
+
+[dependencies]
+# Deaktiviert den automatischen v1-Legacy-Fallback und die kilometerlangen Feature-Listen
+tauri = { version = "2.1.1", default-features = false, features = [] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Die Plugins bleiben unberührt
+tauri-plugin-fs = "2.0.1"
+tauri-plugin-updater = "2.0.1"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

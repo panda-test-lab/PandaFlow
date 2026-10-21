@@ -1,0 +1,21 @@
+node_modules/
+build/
+dist/
+/\$HOME/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+*.py
+*.bat
+*.key*
+
+# Tauri Build-Artefakte und Installer
+src-tauri/target/
+src-tauri/gen/
+
+# Rust-Sperrdateien (falls vorhanden)
+src-tauri/.cargo/
+
+/\02a - PandaFlow/

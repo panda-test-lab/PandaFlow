@@ -1,0 +1,12 @@
+{
+  "$schema": "../definitions/capability-schema.json",
+  "identifier": "main-capability",
+  "description": "Kompakte Berechtigungen fuer PandaFlow",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "fs:default",
+    "path:default",
+    "updater:default"
+  ]
+}

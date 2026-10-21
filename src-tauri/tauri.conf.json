@@ -49,7 +49,7 @@
       "endpoints": [
         "https://github.com"
       ],
-      "pubkey": "untrusted comment: minisign public key: 72819C87E465D26F\nRWRv0mXkh5yBch6sioIVnEP/VUlgDDPfFiXH+ZwTGSLu1tcGasB4n8nH",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDkxNkM5QTJBOTZFRDM1MEYKUldRUE5lMldLcHBza2MybFcwWVlBUmRDaS81Q0UveUNyd3hUa1RPUU93UVU1SXg5M2pnbjVIckcK",
       "requireSignedVersion": true
     }
   },

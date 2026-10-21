@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [macos-latest, ubuntu-latest, windows-latest]
+        platform: [macos-latest]
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -46,7 +46,7 @@ jobs:
         run: bun install
 
       - name: Build Desktop App via CLI
-        if: (matrix.platform == 'windows-latest' && true) || (matrix.platform == 'macos-latest' && true) || (matrix.platform == 'ubuntu-latest' && true)
+        if: (matrix.platform == 'windows-latest' && false) || (matrix.platform == 'macos-latest' && true) || (matrix.platform == 'ubuntu-latest' && false)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
@@ -55,7 +55,7 @@ jobs:
         run: bun run tauri build
 
       - name: Upload Desktop Artifacts to GitHub Release
-        if: (matrix.platform == 'windows-latest' && true) || (matrix.platform == 'macos-latest' && true) || (matrix.platform == 'ubuntu-latest' && true)
+        if: (matrix.platform == 'windows-latest' && false) || (matrix.platform == 'macos-latest' && true) || (matrix.platform == 'ubuntu-latest' && false)
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

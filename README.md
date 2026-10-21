@@ -25,8 +25,8 @@ Production desktop builds check the configured GitHub Releases endpoint when Pan
 
 To publish a signed update:
 
-1. Add the private updater key file contents to the GitHub Actions secret `TAURI_PRIVATE_KEY`.
-2. Add the private key's password to the GitHub Actions secret `TAURI_KEY_PASSWORD`.
+1. Add the private updater key file contents to the GitHub Actions secret `TAURI_SIGNING_PRIVATE_KEY`.
+2. Add the private key's password to the GitHub Actions secret `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
 3. Never commit or share the private key or its password. The public key is configured in `src-tauri/tauri.conf.json`.
 4. Update the versions in `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`, then push a matching `app-v<version>` tag (for example `app-v1.2.1`). The repository must be public for the configured GitHub Releases update endpoint.
 

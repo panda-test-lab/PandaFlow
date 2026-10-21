@@ -6,7 +6,7 @@
   "permissions": [
     "core:default",
     "fs:default",
-    "path:default",
+    "core:path:default",
     "updater:default"
   ]
 }

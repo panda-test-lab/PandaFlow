@@ -22,7 +22,8 @@ import {
   StudyRegulations,
   ModuleOverviewDocument 
 } from './types';
-import { loadDatabase, saveDatabase, exportDatabaseAsJson, exportDatabaseAsEncryptedSqlite, clearDatabase, emptyDatabase } from './services/storage';
+import { loadDatabase, loadDatabaseWithRecovery, saveDatabase, exportDatabaseAsJson, exportDatabaseAsEncryptedSqlite, clearDatabase, emptyDatabase, isAppDirectoryStorageActive } from './services/storage';
+import { logError } from './services/logger';
 import {
   addById,
   deleteEventAndRelations,
@@ -69,6 +70,10 @@ import { TauriUpdatePrompt } from './components/TauriUpdatePrompt';
 export default function App() {
   const [data, setReactData] = useState<AppDatabase>(() => loadDatabase());
   const dataRef = useRef(data);
+  const [storageReady, setStorageReady] = useState<boolean>(() => !isAppDirectoryStorageActive());
+  const [storageWarning, setStorageWarning] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
   const setData = (update: React.SetStateAction<AppDatabase>) => {
     const nextData = typeof update === 'function' ? update(dataRef.current) : update;
     dataRef.current = nextData;
@@ -94,10 +99,58 @@ export default function App() {
     noteId?: string;
   }>({});
 
-  // Auto-save whenever data changes
   useEffect(() => {
-    saveDatabase(data);
-  }, [data]);
+    if (!isAppDirectoryStorageActive()) return;
+
+    let mounted = true;
+    void loadDatabaseWithRecovery()
+      .then(({ data: restoredData, warning }) => {
+        if (!mounted) return;
+        dataRef.current = restoredData;
+        setReactData(restoredData);
+        setStorageWarning(warning || null);
+        setStorageReady(true);
+      })
+      .catch((error) => {
+        logError('Fehler bei der Speicher-Wiederherstellung beim Start', error);
+        if (!mounted) return;
+        setStorageWarning('Gespeicherte Daten konnten nicht wiederhergestellt werden.');
+        setStorageReady(true);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const saveBeforePageHide = () => {
+      void saveDatabase(dataRef.current).catch((error) => {
+        logError('Fehler beim Abschlussspeichern der Daten', error);
+      });
+    };
+    window.addEventListener('pagehide', saveBeforePageHide);
+    return () => window.removeEventListener('pagehide', saveBeforePageHide);
+  }, []);
+
+  // Persist after a short quiet period, then serialize native writes in storage.ts.
+  useEffect(() => {
+    if (!storageReady) return;
+    setIsSaving(true);
+    const timeout = window.setTimeout(() => {
+      void saveDatabase(data)
+        .then(() => {
+          setSaveError(null);
+          setIsSaving(false);
+        })
+        .catch((error) => {
+          setSaveError(error instanceof Error ? error.message : String(error));
+          setIsSaving(false);
+        });
+    }, 350);
+
+    return () => window.clearTimeout(timeout);
+  }, [data, storageReady]);
 
   const handleNavigate = (tabId: string, params: any = {}) => {
     setNavParams(params || {});
@@ -467,13 +520,21 @@ export default function App() {
   };
 
   const handleResetData = () => {
-    clearDatabase();
-    setData(emptyDatabase);
+    try {
+      clearDatabase();
+      setData(emptyDatabase);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : String(error));
+    }
   };
 
   const handleClearAllData = () => {
-    clearDatabase();
-    setData(emptyDatabase);
+    try {
+      clearDatabase();
+      setData(emptyDatabase);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : String(error));
+    }
   };
 
   const handleSaveHandbook = (handbook: ModuleHandbook | undefined) => {
@@ -501,7 +562,8 @@ export default function App() {
     const savedPass = sessionStorage.getItem('pandaflow_session_passphrase') || 'Studium2026!Sicher';
     try {
       await exportDatabaseAsEncryptedSqlite(data, savedPass);
-    } catch {
+    } catch (error) {
+      logError('Schnellexport fehlgeschlagen', error);
       handleNavigate('backup');
     }
   };
@@ -521,6 +583,14 @@ export default function App() {
     return false;
   });
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  if (!storageReady) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-200">
+        Gespeicherte Daten werden wiederhergestellt …
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-slate-950 text-slate-100 font-sans">
@@ -582,6 +652,28 @@ export default function App() {
                   <X className="h-4 w-4" />
                 </button>
               </div>
+            )}
+            {storageWarning && (
+              <div role="alert" className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100">
+                {storageWarning}
+              </div>
+            )}
+            {saveError && (
+              <div role="alert" className="mb-4 flex items-start gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-100">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-300" />
+                <p className="flex-1">Beim Speichern ist ein Fehler aufgetreten: {saveError}</p>
+                <button
+                  type="button"
+                  onClick={() => setSaveError(null)}
+                  aria-label="Speicherfehler schließen"
+                  className="rounded p-1 text-red-200 hover:bg-red-500/20"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+            {isSaving && !saveError && (
+              <p role="status" className="mb-3 text-xs text-slate-400">Änderungen werden gespeichert …</p>
             )}
             {activeTab === 'dashboard' && (
               <Dashboard

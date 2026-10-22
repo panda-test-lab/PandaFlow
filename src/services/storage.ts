@@ -16,6 +16,7 @@ import {
   setAppDirectoryStorageActive,
   APP_DIR_CONFIG,
 } from './appDirectoryStorage';
+import { logError } from './logger';
 
 export {
   isAppDirectoryStorageActive,
@@ -70,82 +71,181 @@ export const emptyDatabase: AppDatabase = {
   deadlines: [],
   moduleHandbook: undefined,
   studyRegulations: undefined,
+  moduleOverview: undefined,
 };
 
-export function loadDatabase(): AppDatabase {
+interface LocalDatabaseLoad {
+  data: AppDatabase;
+  found: boolean;
+  error?: unknown;
+}
+
+function normalizeDatabase(parsed: any): AppDatabase {
+  return {
+    version: parsed.version || 1,
+    lastUpdated: parsed.lastUpdated || new Date().toISOString(),
+    settings: { ...emptyDatabase.settings, ...(parsed.settings || {}) },
+    studyStages: Array.isArray(parsed.studyStages) && parsed.studyStages.length > 0
+      ? parsed.studyStages
+      : (emptyDatabase.studyStages || []),
+    semesters: Array.isArray(parsed.semesters) && parsed.semesters.length > 0
+      ? parsed.semesters.map((s: any, idx: number) => {
+          const semNum = Number(s.number || s.studySemester) || (idx + 1);
+          const autoTerm = semNum % 2 === 1
+            ? `WS ${2026 + Math.floor((semNum - 1) / 2)}/${2027 + Math.floor((semNum - 1) / 2)}`
+            : `SoSe ${2027 + Math.floor((semNum - 1) / 2)}`;
+          const termName = s.termName || autoTerm;
+          return {
+            ...s,
+            number: semNum,
+            name: s.name || `${semNum}. Semester (${termName})`,
+            termName,
+            stageId: s.stageId || (emptyDatabase.studyStages?.[0]?.id || 'stage-grund'),
+            status: s.status || (idx === 0 ? 'aktiv' : 'geplant'),
+          };
+        })
+      : emptyDatabase.semesters,
+    modules: Array.isArray(parsed.modules) ? parsed.modules : emptyDatabase.modules,
+    events: Array.isArray(parsed.events) ? parsed.events : emptyDatabase.events,
+    notes: Array.isArray(parsed.notes) ? parsed.notes : emptyDatabase.notes,
+    topics: Array.isArray(parsed.topics) ? parsed.topics : emptyDatabase.topics,
+    exams: Array.isArray(parsed.exams) ? parsed.exams : emptyDatabase.exams,
+    materials: Array.isArray(parsed.materials) ? parsed.materials : emptyDatabase.materials,
+    ankiInbox: Array.isArray(parsed.ankiInbox) ? parsed.ankiInbox : emptyDatabase.ankiInbox,
+    predefinedTags: parsed.predefinedTags || emptyDatabase.predefinedTags || [],
+    deadlines: Array.isArray(parsed.deadlines) ? parsed.deadlines : emptyDatabase.deadlines,
+    moduleHandbook: parsed.moduleHandbook || undefined,
+    studyRegulations: parsed.studyRegulations || undefined,
+    moduleOverview: parsed.moduleOverview || undefined,
+  };
+}
+
+function readLocalDatabase(): LocalDatabaseLoad {
+  let raw: string | null = null;
   try {
-    const raw = localStorage.getItem(PRIMARY_STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY);
+    raw = localStorage.getItem(PRIMARY_STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY);
     if (!raw) {
-      return emptyDatabase;
+      return { data: emptyDatabase, found: false };
     }
-    const parsed = JSON.parse(raw);
-    return {
-      version: parsed.version || 1,
-      lastUpdated: parsed.lastUpdated || new Date().toISOString(),
-      settings: { ...emptyDatabase.settings, ...(parsed.settings || {}) },
-      studyStages: Array.isArray(parsed.studyStages) && parsed.studyStages.length > 0
-        ? parsed.studyStages
-        : (emptyDatabase.studyStages || []),
-      semesters: Array.isArray(parsed.semesters) && parsed.semesters.length > 0
-        ? parsed.semesters.map((s: any, idx: number) => {
-            const semNum = Number(s.number || s.studySemester) || (idx + 1);
-            const autoTerm = semNum % 2 === 1
-              ? `WS ${2026 + Math.floor((semNum - 1) / 2)}/${2027 + Math.floor((semNum - 1) / 2)}`
-              : `SoSe ${2027 + Math.floor((semNum - 1) / 2)}`;
-            const termName = s.termName || autoTerm;
-            return {
-              ...s,
-              number: semNum,
-              name: s.name || `${semNum}. Semester (${termName})`,
-              termName,
-              stageId: s.stageId || (emptyDatabase.studyStages?.[0]?.id || 'stage-grund'),
-              status: s.status || (idx === 0 ? 'aktiv' : 'geplant'),
-            };
-          })
-        : emptyDatabase.semesters,
-      modules: Array.isArray(parsed.modules) ? parsed.modules : emptyDatabase.modules,
-      events: parsed.events || [],
-      notes: parsed.notes || [],
-      topics: parsed.topics || [],
-      exams: parsed.exams || [],
-      materials: parsed.materials || [],
-      ankiInbox: parsed.ankiInbox || [],
-      predefinedTags: parsed.predefinedTags || emptyDatabase.predefinedTags || [],
-      deadlines: parsed.deadlines || [],
-      moduleHandbook: parsed.moduleHandbook || undefined,
-      studyRegulations: parsed.studyRegulations || undefined,
-    };
+    return { data: normalizeDatabase(JSON.parse(raw)), found: true };
   } catch (err) {
-    console.error('Fehler beim Laden der Datenbank aus localStorage:', err);
-    return emptyDatabase;
+    logError('Fehler beim Laden der Datenbank aus localStorage', err);
+    return { data: emptyDatabase, found: raw !== null, error: err };
   }
+}
+
+export function loadDatabase(): AppDatabase {
+  return readLocalDatabase().data;
+}
+
+export async function loadDatabaseWithRecovery(): Promise<{ data: AppDatabase; warning?: string }> {
+  const local = readLocalDatabase();
+  if (!isAppDirectoryStorageActive()) {
+    return {
+      data: local.data,
+      warning: local.error ? 'Lokale Daten konnten nicht vollständig gelesen werden.' : undefined,
+    };
+  }
+
+  const native = await loadEncryptedDatabaseFromAppDirectory();
+  if (native.success && native.data) {
+    const localTimestamp = Date.parse(local.data.lastUpdated);
+    const nativeTimestamp = Date.parse(native.data.lastUpdated);
+    if (!local.found || local.error || !Number.isFinite(localTimestamp) ||
+      (Number.isFinite(nativeTimestamp) && nativeTimestamp > localTimestamp)) {
+      return { data: native.data };
+    }
+    return {
+      data: local.data,
+      warning: local.error ? 'Lokale Daten waren beschädigt; die ältere lokale Kopie wird verwendet.' : undefined,
+    };
+  }
+
+  const noNativeDatabase = native.message === 'Keine native Datenbank gefunden.';
+  return {
+    data: local.data,
+    warning: local.error
+      ? `Lokale Daten konnten nicht gelesen werden${noNativeDatabase ? '' : `; Wiederherstellung fehlgeschlagen: ${native.message}`}.`
+      : (!noNativeDatabase ? `Native Datenbank konnte nicht geladen werden: ${native.message}` : undefined),
+  };
 }
 
 export function clearDatabase(): void {
   try {
     localStorage.setItem(PRIMARY_STORAGE_KEY, JSON.stringify(emptyDatabase));
   } catch (err) {
-    console.error('Fehler beim Leeren der Datenbank:', err);
+    logError('Fehler beim Leeren der Datenbank', err);
+    throw err;
   }
 }
 
-export function saveDatabase(data: AppDatabase): void {
-  try {
-    const toSave: AppDatabase = {
-      ...data,
-      lastUpdated: new Date().toISOString(),
-    };
-    localStorage.setItem(PRIMARY_STORAGE_KEY, JSON.stringify(toSave));
+let pendingNativeSave: AppDatabase | null = null;
+let nativeSaveWorker: Promise<void> | null = null;
 
-    // Automatische Synchronisation ins Anwendungsverzeichnis (verschlüsseltes SQLite)
-    if (isAppDirectoryStorageActive()) {
-      saveEncryptedDatabaseToAppDirectory(toSave).catch((err) => {
-        console.warn('[PandaFlow Storage] Hintergrund-Sync ins Anwendungsverzeichnis:', err);
-      });
+async function drainNativeSaveQueue(): Promise<void> {
+  while (pendingNativeSave) {
+    const snapshot = pendingNativeSave;
+    pendingNativeSave = null;
+    try {
+      const result = await saveEncryptedDatabaseToAppDirectory(snapshot);
+      if (!result.success) {
+        throw new Error(result.message);
+      }
+    } catch (error) {
+      if (!pendingNativeSave) throw error;
     }
-  } catch (err) {
-    console.error('Fehler beim Speichern der Datenbank:', err);
   }
+}
+
+function queueNativeSave(data: AppDatabase): Promise<void> {
+  pendingNativeSave = data;
+  if (!nativeSaveWorker) {
+    const worker = drainNativeSaveQueue();
+    nativeSaveWorker = worker;
+    void worker.finally(() => {
+      if (nativeSaveWorker === worker) {
+        nativeSaveWorker = null;
+      }
+      if (pendingNativeSave) {
+        void queueNativeSave(pendingNativeSave).catch((error) => {
+          logError('Fehler beim Schreiben des zuletzt angeforderten Datenstands', error);
+        });
+      }
+    }).catch(() => undefined);
+  }
+  return nativeSaveWorker;
+}
+
+export async function saveDatabase(data: AppDatabase): Promise<void> {
+  const toSave: AppDatabase = {
+    ...data,
+    lastUpdated: new Date().toISOString(),
+  };
+
+  let localStorageError: unknown;
+  try {
+    localStorage.setItem(PRIMARY_STORAGE_KEY, JSON.stringify(toSave));
+  } catch (err) {
+    logError('Fehler beim Speichern der Datenbank in localStorage', err);
+    localStorageError = err;
+  }
+
+  let nativeStorageError: unknown;
+  if (isAppDirectoryStorageActive()) {
+    try {
+      await queueNativeSave(toSave);
+    } catch (err) {
+      nativeStorageError = err;
+    }
+  }
+
+  if (localStorageError && nativeStorageError) {
+    throw new Error(
+      `Lokaler Speicher: ${String(localStorageError)}; App-Verzeichnis: ${String(nativeStorageError)}`
+    );
+  }
+  if (nativeStorageError) throw nativeStorageError;
+  if (localStorageError) throw localStorageError;
 }
 
 export function exportDatabaseAsJson(data: AppDatabase): void {

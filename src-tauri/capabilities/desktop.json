@@ -6,6 +6,14 @@
   "permissions": [
     "core:default",
     "fs:default",
+    {
+      "identifier": "fs:allow-write-file",
+      "allow": [{ "path": "$APPDATA/**" }]
+    },
+    {
+      "identifier": "fs:allow-write-text-file",
+      "allow": [{ "path": "$APPLOG/**" }]
+    },
     "core:path:default",
     "updater:default"
   ]

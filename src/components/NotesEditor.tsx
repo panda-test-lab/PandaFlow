@@ -57,6 +57,7 @@ import {
   NoteChecklistExamPrep,
   NoteChecklistNotionLM
 } from '../types';
+import { logError } from '../services/logger';
 
 interface NotesEditorProps {
   notes: LectureNote[];
@@ -142,17 +143,27 @@ export const NotesEditor: React.FC<NotesEditorProps> = ({
     setCurrentNote({ ...currentNote, content: converted });
   };
 
-  // Auto-Save State (5 minutes)
+  // Auto-save preference and status
   const [autoSaveEnabled, setAutoSaveEnabled] = useState<boolean>(() => {
     try {
       const saved = localStorage.getItem('study_notes_autosave');
       return saved !== null ? saved === 'true' : true;
-    } catch {
+    } catch (error) {
+      logError('Fehler beim Lesen der Mitschrift-Autosave-Einstellung', error);
       return true;
     }
   });
   const [lastSavedTime, setLastSavedTime] = useState<string | null>(null);
   const [justAutoSaved, setJustAutoSaved] = useState<boolean>(false);
+
+  const handleAutoSaveToggle = (enabled: boolean) => {
+    setAutoSaveEnabled(enabled);
+    try {
+      localStorage.setItem('study_notes_autosave', String(enabled));
+    } catch (error) {
+      logError('Fehler beim Speichern der Mitschrift-Autosave-Einstellung', error);
+    }
+  };
 
   // WikiLink insertion state
   const [showWikiLinkPicker, setShowWikiLinkPicker] = useState<boolean>(false);
@@ -387,12 +398,14 @@ export const NotesEditor: React.FC<NotesEditorProps> = ({
     setIsEditing(false);
   };
 
-  // Ref to always access latest state in auto-save interval without stale closures
+  // Ref gives the debounced save callback the latest note and handlers.
   const autoSaveStateRef = useRef({
     currentNote,
     activeNote,
     isEditing,
     autoSaveEnabled,
+    onUpdateNote,
+    modules,
   });
 
   useEffect(() => {
@@ -401,46 +414,56 @@ export const NotesEditor: React.FC<NotesEditorProps> = ({
       activeNote,
       isEditing,
       autoSaveEnabled,
+      onUpdateNote,
+      modules,
     };
-  }, [currentNote, activeNote, isEditing, autoSaveEnabled]);
+  }, [currentNote, activeNote, isEditing, autoSaveEnabled, onUpdateNote, modules]);
 
-  // Auto-Save: Speichert den aktuellen Stand alle 5 Minuten ab
+  // Persist the draft shortly after typing stops instead of waiting several minutes.
   useEffect(() => {
-    if (!autoSaveEnabled) return;
+    if (!autoSaveEnabled || !isEditing || !currentNote.title) return;
 
-    const interval = setInterval(() => {
-      const { currentNote: cNote, activeNote: aNote, isEditing: editing, autoSaveEnabled: enabled } = autoSaveStateRef.current;
-      if (enabled && editing && aNote && cNote && cNote.title) {
-        const updated: LectureNote = {
-          ...aNote,
-          ...cNote,
-          title: cNote.title || 'Unbenannte Mitschrift',
-          moduleId: cNote.moduleId || modules[0]?.id || '',
-          updatedAt: new Date().toISOString(),
-          tags: cNote.tags || [],
-          keyTakeaways: cNote.keyTakeaways || [],
-          connectionsList: cNote.connectionsList || [],
-          openQuestionsList: cNote.openQuestionsList || [],
-          insightsList: cNote.insightsList || [],
-          examHintsList: cNote.examHintsList || [],
-          linkedTopicIds: cNote.linkedTopicIds || [],
-          linkedMaterialIds: cNote.linkedMaterialIds || [],
-          checklistShortTerm: cNote.checklistShortTerm || {},
-          checklistExamPrep: cNote.checklistExamPrep || {},
-          checklistNotionLM: cNote.checklistNotionLM || {},
-        };
-        onUpdateNote(updated);
-        const timeStr = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-        setLastSavedTime(timeStr);
-        setJustAutoSaved(true);
-        setTimeout(() => {
-          setJustAutoSaved(false);
-        }, 4000);
-      }
-    }, 5 * 60 * 1000);
+    const timeout = window.setTimeout(() => {
+      const {
+        currentNote: draft,
+        activeNote: savedNote,
+        isEditing: editing,
+        autoSaveEnabled: enabled,
+        onUpdateNote: updateNote,
+        modules: currentModules,
+      } = autoSaveStateRef.current;
+      if (!enabled || !editing || !savedNote || !draft.title) return;
 
-    return () => clearInterval(interval);
-  }, [autoSaveEnabled, modules, onUpdateNote]);
+      const updated: LectureNote = {
+        ...savedNote,
+        ...draft,
+        title: draft.title || 'Unbenannte Mitschrift',
+        moduleId: draft.moduleId || currentModules[0]?.id || '',
+        updatedAt: new Date().toISOString(),
+        tags: draft.tags || [],
+        keyTakeaways: draft.keyTakeaways || [],
+        connectionsList: draft.connectionsList || [],
+        openQuestionsList: draft.openQuestionsList || [],
+        insightsList: draft.insightsList || [],
+        examHintsList: draft.examHintsList || [],
+        linkedTopicIds: draft.linkedTopicIds || [],
+        linkedMaterialIds: draft.linkedMaterialIds || [],
+        checklistShortTerm: draft.checklistShortTerm || {},
+        checklistExamPrep: draft.checklistExamPrep || {},
+        checklistNotionLM: draft.checklistNotionLM || {},
+      };
+
+      if (JSON.stringify({ ...updated, updatedAt: savedNote.updatedAt }) === JSON.stringify(savedNote)) return;
+
+      updateNote(updated);
+      const timeStr = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+      setLastSavedTime(timeStr);
+      setJustAutoSaved(true);
+      window.setTimeout(() => setJustAutoSaved(false), 4000);
+    }, 800);
+
+    return () => window.clearTimeout(timeout);
+  }, [currentNote, isEditing, autoSaveEnabled]);
 
   // List Item Add/Remove Handlers
   const handleAddListItem = (
@@ -922,18 +945,13 @@ export const NotesEditor: React.FC<NotesEditorProps> = ({
                   {/* Switch Auto-Speicherung */}
                   <label 
                     className="flex items-center gap-2 cursor-pointer select-none px-2.5 py-1.5 bg-slate-950/80 border border-slate-800 hover:border-slate-700 rounded-lg transition-colors"
-                    title="Automatisches Speichern alle 5 Minuten"
+                    title="Speichert Entwürfe nach kurzer Eingabepause"
                   >
                     <div className="relative inline-flex items-center">
                       <input
                         type="checkbox"
                         checked={autoSaveEnabled}
-                        onChange={(e) => {
-                          setAutoSaveEnabled(e.target.checked);
-                          try {
-                            localStorage.setItem('study_notes_autosave', String(e.target.checked));
-                          } catch {}
-                        }}
+                        onChange={(e) => handleAutoSaveToggle(e.target.checked)}
                         className="sr-only peer"
                       />
                       <div className="w-7 h-3.5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[1px] after:left-[1px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-2.5 after:w-2.5 after:transition-all peer-checked:bg-teal-500"></div>
@@ -1916,12 +1934,7 @@ export const NotesEditor: React.FC<NotesEditorProps> = ({
                       <input
                         type="checkbox"
                         checked={autoSaveEnabled}
-                        onChange={(e) => {
-                          setAutoSaveEnabled(e.target.checked);
-                          try {
-                            localStorage.setItem('study_notes_autosave', String(e.target.checked));
-                          } catch {}
-                        }}
+                        onChange={(e) => handleAutoSaveToggle(e.target.checked)}
                         className="sr-only peer"
                       />
                       <div className="w-8 h-4 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-teal-500"></div>
@@ -1929,7 +1942,7 @@ export const NotesEditor: React.FC<NotesEditorProps> = ({
                     <div className="flex flex-col">
                       <span className="text-xs font-semibold text-slate-200">Auto-Speicherung</span>
                       <span className="text-[10px] text-slate-400">
-                        {autoSaveEnabled ? 'Alle 5 Min. aktiv' : 'Deaktiviert'}
+                        {autoSaveEnabled ? 'Bei Änderungen aktiv' : 'Deaktiviert'}
                       </span>
                     </div>
                   </label>

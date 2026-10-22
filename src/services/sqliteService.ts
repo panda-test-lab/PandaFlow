@@ -137,8 +137,9 @@ export async function createSqliteBinaryFromAppDatabase(data: AppDatabase): Prom
   const SQL = await getSqlEngine();
   const db: SqlJsDatabase = new SQL.Database();
 
-  // Create tables
-  db.run(`
+  try {
+    // Create tables
+    db.run(`
     CREATE TABLE metadata (
       key TEXT PRIMARY KEY,
       value TEXT
@@ -305,7 +306,9 @@ export async function createSqliteBinaryFromAppDatabase(data: AppDatabase): Prom
       key TEXT PRIMARY KEY,
       json_content TEXT
     );
-  `);
+    `);
+
+    db.run('BEGIN TRANSACTION');
 
   // Insert metadata
   const insertMeta = db.prepare('INSERT INTO metadata (key, value) VALUES (?, ?)');
@@ -557,9 +560,11 @@ export async function createSqliteBinaryFromAppDatabase(data: AppDatabase): Prom
   }
   docStmt.free();
 
-  const binary = db.export();
-  db.close();
-  return binary;
+    db.run('COMMIT');
+    return db.export();
+  } finally {
+    db.close();
+  }
 }
 
 // Parse SQLite 3 binary file back into AppDatabase

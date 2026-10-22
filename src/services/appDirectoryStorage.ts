@@ -16,6 +16,7 @@ import {
   decryptSqliteData
 } from './sqliteService';
 import { isTauriEnvironment } from './tauriService';
+import { logError } from './logger';
 
 // TAURI V2 IMPORTS: Funktionsnamen angepasst auf v2-Standard
 import { exists, mkdir, writeFile, readFile } from '@tauri-apps/plugin-fs';
@@ -42,11 +43,10 @@ export const APP_DIR_CONFIG: AppDirectoryStorageConfig = {
 export async function getAppDatabasePath(): Promise<string> {
   if (!isTauriEnvironment()) return '';
   try {
-    // Ermittelt automatisch das AppData-Verzeichnis deines Systems (z.B. AppData/Roaming/com.pandaflow.app/)
     const baseDir = await appDataDir();
-    return `${baseDir}${APP_DIR_CONFIG.databaseFilename}`;
+    return `${String(baseDir).replace(/[\\/]$/, '')}/${APP_DIR_CONFIG.databaseFilename}`;
   } catch (e) {
-    console.error("Fehler beim Ermitteln des Pfads:", e);
+    logError('Fehler beim Ermitteln des Datenbankpfads', e);
     return '';
   }
 }
@@ -62,8 +62,8 @@ export async function resolveTargetAppDirectoryPath(): Promise<string> {
     try {
       const appDir = await appDataDir();
       return `${String(appDir).replace(/[\\/]$/, '')}/${filename}`;
-    } catch {
-      // Fallback zu generischem Pfad
+    } catch (error) {
+      logError('Fehler beim Ermitteln des nativen AppData-Pfads', error);
     }
   }
 
@@ -105,13 +105,9 @@ function getParentDirectory(path: string): string {
 
 async function ensureNativeDirectoryExists(targetPath: string): Promise<void> {
   const parentDir = getParentDirectory(targetPath);
-  try {
-    const dirExists = await exists(parentDir);
-    if (!dirExists) {
-      await mkdir(parentDir, { recursive: true });
-    }
-  } catch (e) {
-    console.error("Fehler beim automatischen Erstellen des Verzeichnisbaums:", e);
+  const dirExists = await exists(parentDir);
+  if (!dirExists) {
+    await mkdir(parentDir, { recursive: true });
   }
 }
 
@@ -144,13 +140,13 @@ export async function saveEncryptedDatabaseToAppDirectory(
       bytesWritten: encryptedBytes.length,
       message: `Erfolgreich in ${targetPath} gespeichert.`,
     };
-  } catch (err: any) {
-    console.error('[PandaFlow Storage] Fehler beim Speichern der verschlüsselten SQLite-Datenbank:', err);
+  } catch (err) {
+    logError('Fehler beim Speichern der verschlüsselten SQLite-Datenbank', err);
     return {
       success: false,
       path: targetPath,
       bytesWritten: 0,
-      message: err?.message || 'Unbekannter Fehler beim Speichern im Anwendungsverzeichnis',
+      message: err instanceof Error ? err.message : 'Unbekannter Fehler beim Speichern im Anwendungsverzeichnis',
     };
   }
 }
@@ -167,7 +163,7 @@ export async function loadEncryptedDatabaseFromAppDirectory(
     try {
       const fileExists = await exists(targetPath);
       if (fileExists) {
-        const rawEncryptedBytes = await readFile(targetPath);        
+        const rawEncryptedBytes = await readFile(targetPath);
         const decryptedSqlite = await decryptSqliteData(new Uint8Array(rawEncryptedBytes), passphrase);
         const parsedDb = await parseSqliteBinaryToAppDatabase(decryptedSqlite);
         
@@ -177,11 +173,15 @@ export async function loadEncryptedDatabaseFromAppDirectory(
           message: `Datenbank erfolgreich aus ${targetPath} geladen.`,
         };
       }
-    } catch (err: any) {
-      console.warn('[PandaFlow Storage] Fehler beim Laden aus nativem Pfad:', err);
       return {
         success: false,
-        message: `Konnte nicht aus ${targetPath} lesen: ${err?.message}`,
+        message: 'Keine native Datenbank gefunden.',
+      };
+    } catch (err) {
+      logError('Fehler beim Laden der nativen Datenbank', err);
+      return {
+        success: false,
+        message: `Konnte nicht aus ${targetPath} lesen: ${err instanceof Error ? err.message : String(err)}`,
       };
     }
   }

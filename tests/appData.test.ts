@@ -33,6 +33,7 @@ import {
   importDatabaseFromJson,
   isAppDirectoryStorageActive,
   loadDatabase,
+  loadDatabaseWithRecovery,
   saveDatabase,
 } from '../src/services/storage';
 import { saveEncryptedDatabaseToAppDirectory } from '../src/services/appDirectoryStorage';
@@ -140,6 +141,34 @@ describe('Datenbank-Persistenz', () => {
     assert.equal(loaded.modules[0].code, 'BIO-101');
     assert.notEqual(loaded.lastUpdated, data.lastUpdated);
     assert.equal(data.modules.length, 1);
+  });
+
+  it('lädt im Browser weiterhin den lokalen Datenbestand über den Wiederherstellungspfad', async () => {
+    localStorageMock.setItem('pandaflow_database_v1', JSON.stringify({
+      ...emptyDatabase,
+      modules: [{ id: 'module-restore', name: 'Biologie' }],
+    }));
+
+    const restored = await loadDatabaseWithRecovery();
+
+    assert.equal(restored.data.modules[0].id, 'module-restore');
+    assert.equal(restored.warning, undefined);
+  });
+
+  it('meldet fehlgeschlagene localStorage-Speicherungen als Fehler', async () => {
+    const originalSetItem = localStorageMock.setItem.bind(localStorageMock);
+    const originalConsoleError = console.error;
+    localStorageMock.setItem = () => {
+      throw new Error('QuotaExceededError');
+    };
+    console.error = () => undefined;
+
+    try {
+      await assert.rejects(saveDatabase(emptyDatabase), /QuotaExceededError/);
+    } finally {
+      localStorageMock.setItem = originalSetItem;
+      console.error = originalConsoleError;
+    }
   });
 
   it('liest das ältere Storage-Format und normalisiert Semesterdaten', () => {

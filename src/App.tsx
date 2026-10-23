@@ -23,7 +23,7 @@ import {
   ModuleOverviewDocument 
 } from './types';
 import { loadDatabase, loadDatabaseWithRecovery, saveDatabase, exportDatabaseAsJson, exportDatabaseAsEncryptedSqlite, clearDatabase, emptyDatabase, isAppDirectoryStorageActive } from './services/storage';
-import { logError } from './services/logger';
+import { dismissAppError, logError, subscribeToAppErrors, type AppErrorNotice } from './services/logger';
 import {
   addById,
   deleteEventAndRelations,
@@ -73,6 +73,7 @@ export default function App() {
   const [storageReady, setStorageReady] = useState<boolean>(() => !isAppDirectoryStorageActive());
   const [storageWarning, setStorageWarning] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [appError, setAppError] = useState<AppErrorNotice | null>(null);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const setData = (update: React.SetStateAction<AppDatabase>) => {
     const nextData = typeof update === 'function' ? update(dataRef.current) : update;
@@ -88,6 +89,8 @@ export default function App() {
   // Onboarding state
   const [isOnboarding, setIsOnboarding] = useState<boolean>(() => !localStorage.getItem('app_user_name'));
   const [userName, setUserName] = useState<string>(() => localStorage.getItem('app_user_name') || '');
+
+  useEffect(() => subscribeToAppErrors(setAppError), []);
 
   // Context parameters for cross-tab navigation
   const [navParams, setNavParams] = useState<{
@@ -636,6 +639,26 @@ export default function App() {
         {/* Viewport Scroll Container */}
         <main className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6 min-w-0">
           <div className="max-w-7xl mx-auto pb-12 min-w-0">
+            {appError && (
+              <div role="alert" className="mb-4 flex items-start gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-100">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-300" />
+                <div className="min-w-0 flex-1">
+                  <p>{appError.context}</p>
+                  <p className="mt-1 break-words text-xs text-red-200/80">{appError.details}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    dismissAppError(appError.id);
+                    setAppError(null);
+                  }}
+                  aria-label="Fehlerhinweis schließen"
+                  className="rounded p-1 text-red-200 hover:bg-red-500/20"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            )}
             {duplicateWarning && (
               <div
                 role="alert"

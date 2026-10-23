@@ -1,18 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { Download, LoaderCircle, RefreshCw, X } from 'lucide-react';
 import { isTauriEnvironment } from '../services/tauriService';
+import { logError } from '../services/logger';
 import { check } from '@tauri-apps/plugin-updater';
 
 interface AvailableUpdate {
   version: string;
   body: string;
-  // Wir speichern das v2-Update-Objekt direkt ab, um es später zu installieren
-  manifest?: any; 
+  manifest?: Awaited<ReturnType<typeof check>>;
 }
 
 export const TauriUpdatePrompt: React.FC = () => {
   const [availableUpdate, setAvailableUpdate] = useState<AvailableUpdate | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [isChecking, setIsChecking] = useState(false);
   const [isInstalling, setIsInstalling] = useState(false);
 
@@ -22,7 +21,6 @@ export const TauriUpdatePrompt: React.FC = () => {
     let mounted = true;
     const checkUpdateAction = async () => {
       setIsChecking(true);
-      setError(null);
       try {
         // Tauri v2: check() sucht automatisch nach Updates basierend auf deiner tauri.conf.json
         const update = await check();
@@ -37,9 +35,7 @@ export const TauriUpdatePrompt: React.FC = () => {
           }
         }
       } catch (checkError) {
-        if (mounted) {
-          setError(checkError instanceof Error ? checkError.message : String(checkError));
-        }
+        if (mounted) logError('Update-Prüfung fehlgeschlagen', checkError);
       } finally {
         if (mounted) setIsChecking(false);
       }
@@ -54,12 +50,11 @@ export const TauriUpdatePrompt: React.FC = () => {
   const install = async () => {
     if (!availableUpdate?.manifest) return;
     setIsInstalling(true);
-    setError(null);
     try {
       // Tauri v2: Lädt das Update herunter und installiert es (App startet danach neu)
       await availableUpdate.manifest.downloadAndInstall();
     } catch (installError) {
-      setError(installError instanceof Error ? installError.message : String(installError));
+      logError('Update-Installation fehlgeschlagen', installError);
       setIsInstalling(false);
     }
   };
@@ -79,7 +74,6 @@ export const TauriUpdatePrompt: React.FC = () => {
         </button>
       </div>
       <p className="text-xs text-muted-foreground mb-4 max-h-24 overflow-y-auto">{availableUpdate.body}</p>
-      {error && <p className="text-xs text-destructive mb-2">{error}</p>}
       <button
         onClick={install}
         disabled={isInstalling}

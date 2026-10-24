@@ -91,8 +91,7 @@ jobs:
           releaseBody: Desktop- und Mobil-Builds für PandaFlow ${{ github.ref_name }}.
           releaseDraft: true
           prerelease: false
-          uploadUpdaterJson: true
-          uploadUpdaterSignatures: true
+          includeUpdaterJson: true
           retryAttempts: 5
           args: ${{ matrix.args }}
 
@@ -156,9 +155,14 @@ jobs:
   build-ios:
     name: iOS simulator build
     needs: create-release
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+
+      - name: Select Xcode 16.4
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '16.4'
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

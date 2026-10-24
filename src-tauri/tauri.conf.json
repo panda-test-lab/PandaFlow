@@ -42,7 +42,7 @@
     "createUpdaterArtifacts": true
   },
   "productName": "PandaFlow",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "mainBinaryName": "PandaFlow",
   "identifier": "com.pandaflow.app",
   "plugins": {

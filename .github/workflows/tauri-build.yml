@@ -16,10 +16,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "Release $GITHUB_REF_NAME already exists."
           else
             gh release create "$GITHUB_REF_NAME" \
+              --repo "$GITHUB_REPOSITORY" \
               --title "PandaFlow $GITHUB_REF_NAME" \
               --notes "Desktop- und Mobil-Builds für PandaFlow $GITHUB_REF_NAME." \
               --draft \
@@ -149,7 +150,7 @@ jobs:
             exit 1
           fi
           for apk_file in "${apk_files[@]}"; do
-            gh release upload "$GITHUB_REF_NAME" "$apk_file" --clobber
+            gh release upload "$GITHUB_REF_NAME" "$apk_file" --repo "$GITHUB_REPOSITORY" --clobber
           done
 
   build-ios:
@@ -185,7 +186,7 @@ jobs:
         run: |
           test -d src-tauri/gen/apple/build
           ditto -c -k --keepParent src-tauri/gen/apple/build PandaFlow-iOS-Simulator.zip
-          gh release upload "$GITHUB_REF_NAME" PandaFlow-iOS-Simulator.zip --clobber
+          gh release upload "$GITHUB_REF_NAME" PandaFlow-iOS-Simulator.zip --repo "$GITHUB_REPOSITORY" --clobber
 
   publish-release:
     name: Publish complete release
@@ -196,5 +197,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          release_id=$(gh release view "$GITHUB_REF_NAME" --json databaseId --jq .databaseId)
+          release_id=$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json databaseId --jq .databaseId)
           gh api "repos/$GITHUB_REPOSITORY/releases/$release_id" --method PATCH -F draft=false

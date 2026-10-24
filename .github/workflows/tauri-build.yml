@@ -41,10 +41,10 @@ jobs:
           - platform: ubuntu-latest
             target: ''
             args: '--bundles appimage,deb,updater'
-          - platform: macos-13
+          - platform: macos-15-intel
             target: 'x86_64-apple-darwin'
             args: '--target x86_64-apple-darwin --bundles app,dmg,updater'
-          - platform: macos-14
+          - platform: macos-15
             target: 'aarch64-apple-darwin'
             args: '--target aarch64-apple-darwin --bundles app,dmg,updater'
     steps:

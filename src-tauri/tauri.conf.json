@@ -39,9 +39,10 @@
         "depends": []
       }
     },
-    "createUpdaterArtifacts": "v1Compatible"
+    "createUpdaterArtifacts": true
   },
   "productName": "PandaFlow",
+  "version": "1.0.6",
   "mainBinaryName": "PandaFlow",
   "identifier": "com.pandaflow.app",
   "plugins": {

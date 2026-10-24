@@ -19,15 +19,18 @@ View your app in AI Studio: https://ai.studio/apps/1983f341-313b-49b7-b999-b621e
 3. Run the app:
    `npm run dev`
 
-## Tauri automatic updates
+## Tauri desktop and mobile releases
 
-Production desktop builds check the configured GitHub Releases endpoint when PandaFlow starts. Available updates are downloaded only after confirmation, and the app restarts after installation.
+For a new AI Studio project, run the preparation scripts once, in this order:
 
-To publish a signed update:
+The Python helper scripts are intentionally excluded from GitHub. Keep the local copies in the project folder; they are needed to prepare the project and create releases from that local checkout, but GitHub Actions does not run them.
 
-1. Add the private updater key file contents to the GitHub Actions secret `TAURI_SIGNING_PRIVATE_KEY`.
-2. Add the private key's password to the GitHub Actions secret `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
-3. Never commit or share the private key or its password. The public key is configured in `src-tauri/tauri.conf.json`.
-4. Update the versions in `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`, then push a matching `app-v<version>` tag (for example `app-v1.2.1`). The repository must be public for the configured GitHub Releases update endpoint.
+1. Download the project from AI Studio.
+2. Set the app/repository identity and updater public key in `prepare-tauri.py`, then run `python prepare-tauri.py`.
+3. Run `python prepare-workflow.py` once. This adds the Tauri updater integration and creates the combined workflow for Windows, Linux, Intel/Apple Silicon macOS, Android, and iOS simulator builds.
+4. Create an **empty** GitHub repository, add it as the `origin` remote, and configure the Actions secrets `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. The private signing key must match the public key in `src-tauri/tauri.conf.json`; never commit or share it.
+5. Run `python py-version.py` for the first release and again for each subsequent release. It updates the frontend, Rust, and Tauri versions together, commits the prepared project, and pushes one `v<version>` tag. The first run initializes the empty remote branch.
 
-The release workflow builds and signs update packages for Windows, Linux, and Intel/Apple Silicon macOS, then publishes the updater manifest with the release.
+The combined workflow builds one draft release with desktop updater bundles, `latest.json`, and mobile artifacts from the same commit and version. It publishes the release only after all selected builds succeed. Windows, Linux, and Intel/Apple Silicon macOS updates use Tauri's signed updater. Android builds upload release APKs. The iOS job uploads a simulator archive; publishing production Android/iOS builds to Google Play or the Apple App Store requires the respective signing credentials and store-upload configuration, which are not included.
+
+The configured GitHub Releases endpoint must be anonymously reachable by installed apps; a private repository cannot serve updater manifests to unauthenticated clients. Do not run both `tauri-build.yml` and a separate updater release workflow for the same tag. The combined workflow uses only `v*` tags, and GitHub Actions merges the per-platform desktop entries into the release's `latest.json`.

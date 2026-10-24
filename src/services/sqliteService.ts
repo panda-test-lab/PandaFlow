@@ -118,16 +118,18 @@ let sqlEnginePromise: Promise<any> | null = null;
 
 async function getSqlEngine() {
   if (!sqlEnginePromise) {
-    sqlEnginePromise = initSqlJs({
-      locateFile: (file) => {
-        return file.endsWith('.wasm') ? '/sql-wasm.wasm' : `/${file}`;
-      },
-    }).catch(async (err) => {
-      console.warn('Lokales SQL.wasm konnte nicht geladen werden, versuche CDN Fallback...', err);
-      return initSqlJs({
-        locateFile: (file) => `https://sql.js.org/dist/${file}`,
+    sqlEnginePromise = import('sql.js/dist/sql-wasm.wasm?url')
+      .then(({ default: sqlWasmUrl }) => initSqlJs({
+        locateFile: (file) => {
+          return file.endsWith('.wasm') ? sqlWasmUrl : `/${file}`;
+        },
+      }))
+      .catch(async (err) => {
+        console.warn('Lokales SQL.wasm konnte nicht geladen werden, versuche CDN Fallback...', err);
+        return initSqlJs({
+          locateFile: (file) => `https://sql.js.org/dist/${file}`,
+        });
       });
-    });
   }
   return sqlEnginePromise;
 }

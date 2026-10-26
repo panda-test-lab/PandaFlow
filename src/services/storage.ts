@@ -36,31 +36,12 @@ export const emptyDatabase: AppDatabase = {
   settings: {
     studentName: 'Student/in',
     university: 'Universität',
-    currentSemesterId: 'sem-1',
+    currentSemesterId: '',
     autoSaveEnabled: true,
     darkMode: true,
   },
-  studyStages: [
-    {
-      id: 'stage-grund',
-      name: 'Grundstudium',
-      type: 'grundstudium',
-      targetDegree: '1. Staatsexamen',
-      order: 1,
-    },
-  ],
-  semesters: [
-    {
-      id: 'sem-1',
-      number: 1,
-      name: '1. Semester (WS 2026/2027)',
-      termName: 'WS 2026/2027',
-      stageId: 'stage-grund',
-      status: 'aktiv',
-      startDate: '2026-10-01',
-      endDate: '2027-03-31',
-    },
-  ],
+  studyStages: [],
+  semesters: [],
   modules: [],
   events: [],
   notes: [],
@@ -85,10 +66,10 @@ function normalizeDatabase(parsed: any): AppDatabase {
     version: parsed.version || 1,
     lastUpdated: parsed.lastUpdated || new Date().toISOString(),
     settings: { ...emptyDatabase.settings, ...(parsed.settings || {}) },
-    studyStages: Array.isArray(parsed.studyStages) && parsed.studyStages.length > 0
+    studyStages: Array.isArray(parsed.studyStages)
       ? parsed.studyStages
       : (emptyDatabase.studyStages || []),
-    semesters: Array.isArray(parsed.semesters) && parsed.semesters.length > 0
+    semesters: Array.isArray(parsed.semesters)
       ? parsed.semesters.map((s: any, idx: number) => {
           const semNum = Number(s.number || s.studySemester) || (idx + 1);
           const autoTerm = semNum % 2 === 1
@@ -100,7 +81,7 @@ function normalizeDatabase(parsed: any): AppDatabase {
             number: semNum,
             name: s.name || `${semNum}. Semester (${termName})`,
             termName,
-            stageId: s.stageId || (emptyDatabase.studyStages?.[0]?.id || 'stage-grund'),
+            stageId: s.stageId || undefined,
             status: s.status || (idx === 0 ? 'aktiv' : 'geplant'),
           };
         })
@@ -171,6 +152,7 @@ export async function loadDatabaseWithRecovery(): Promise<{ data: AppDatabase; w
 }
 
 export function clearDatabase(): void {
+  if (isAppDirectoryStorageActive()) return;
   try {
     localStorage.setItem(PRIMARY_STORAGE_KEY, JSON.stringify(emptyDatabase));
   } catch (err) {
@@ -221,17 +203,20 @@ export async function saveDatabase(data: AppDatabase): Promise<void> {
     ...data,
     lastUpdated: new Date().toISOString(),
   };
+  const nativeStorageActive = isAppDirectoryStorageActive();
 
   let localStorageError: unknown;
-  try {
-    localStorage.setItem(PRIMARY_STORAGE_KEY, JSON.stringify(toSave));
-  } catch (err) {
-    logError('Fehler beim Speichern der Datenbank in localStorage', err);
-    localStorageError = err;
+  if (!nativeStorageActive) {
+    try {
+      localStorage.setItem(PRIMARY_STORAGE_KEY, JSON.stringify(toSave));
+    } catch (err) {
+      logError('Fehler beim Speichern der Datenbank in localStorage', err);
+      localStorageError = err;
+    }
   }
 
   let nativeStorageError: unknown;
-  if (isAppDirectoryStorageActive()) {
+  if (nativeStorageActive) {
     try {
       await queueNativeSave(toSave);
     } catch (err) {

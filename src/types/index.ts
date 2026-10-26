@@ -168,6 +168,10 @@ export interface Exam {
   time: string; // HH:MM
   room: string;
   registrationDeadline?: string; // Anmeldefrist
+  withdrawalDeadline?: string; // Rücktrittsfrist
+  withdrawalDeadlineMatchesRegistration?: boolean;
+  registrationSentAt?: string; // Zeitpunkt der Anmeldung per E-Mail
+  registrationConfirmedAt?: string; // Zeitpunkt des Bestätigungseingangs
   targetGrade?: string;
   actualGrade?: string;
   status: ExamStatus;
@@ -292,7 +296,7 @@ export interface DeadlineItem {
   dueDate: string; // YYYY-MM-DD
   dueTime?: string;
   moduleId?: string;
-  type: 'abgabe' | 'anmeldung' | 'klausur' | 'praktikum' | 'sonstiges';
+  type: 'abgabe' | 'anmeldung' | 'ruecktritt' | 'klausur' | 'praktikum' | 'sonstiges';
   isCompleted: boolean;
   priority: 'dringend' | 'mittel' | 'normal';
   details?: string;

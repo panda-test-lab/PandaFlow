@@ -39,7 +39,7 @@ function cleanPlainTextSymbols(text: string): string {
  * 4. Inline formulas: $...$ or \(...\)
  * 5. Code: `code`
  * 6. Bold+Italic: ***text***
- * 7. Bold: **text** or __text__
+ * 7. Bold: ++text++, **text** or __text__
  * 8. Strikethrough: ~~text~~
  * 9. Markdown links: [text](url)
  * 10. Italic: *text* or _text_
@@ -53,7 +53,7 @@ function cleanPlainTextSymbols(text: string): string {
  * 4. Inline formulas: $...$ or \(...\)
  * 5. Code: `code`
  * 6. Bold+Italic: ***text***
- * 7. Bold: **text** or __text__
+ * 7. Bold: ++text++, **text** or __text__
  * 8. Strikethrough: ~~text~~
  * 9. Markdown links: [text](url)
  * 10. Single bracket WikiLinks: [Target] or [Target|Alias] (when not a markdown link)
@@ -72,7 +72,8 @@ const INLINE_REGEX_SOURCE =
   '(?:\\*\\*([^*]+)\\*\\*)|(?:__([^_]+)__)|' + // 12, 13: **b** or __b__
   '(?:~~([^~]+)~~)|' + // 14: ~~del~~
   '(?:\\[([^\\]]+)\\]\\(([^)\\s]+)\\))|' + // 15, 16: [text](url)
-  '(?:\\*([^*]+)\\*)|(?:(?<!\\w)_([^_]+)_(?!\\w))'; // 17, 18: *i* or _i_
+  '(?:\\*([^*]+)\\*)|(?:(?<!\\w)_([^_]+)_(?!\\w))|' + // 17, 18: *i* or _i_
+  '(?:\\+\\+([^+]+)\\+\\+)'; // 19: ++b++
 
 /**
  * Parses and renders inline markdown tokens, WikiLinks, and formulas recursively.
@@ -258,6 +259,15 @@ export function renderInlineMarkdown(
         <em key={itemKey} className="italic text-slate-200">
           {inner}
         </em>
+      );
+    }
+    // 12. Alternative bold syntax that does not conflict with ## headings
+    else if (match[19] !== undefined) {
+      const inner = depth < 3 ? renderInlineMarkdown(match[19], db, handlers, `${itemKey}-b`, depth + 1) : match[19];
+      elements.push(
+        <strong key={itemKey} className="font-bold text-slate-100">
+          {inner}
+        </strong>
       );
     }
 
@@ -802,4 +812,3 @@ export function isMarkdownBlockText(text: string): boolean {
   if (text.includes('\n')) return true;
   return /^(?:#{1,6}\s|[-*+]\s|\d+\.\s|>\s|```|\||\$\$|\\\[|---|\*\*\*|___)/m.test(text);
 }
-

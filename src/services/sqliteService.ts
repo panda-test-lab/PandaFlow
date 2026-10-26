@@ -253,6 +253,10 @@ export async function createSqliteBinaryFromAppDatabase(data: AppDatabase): Prom
       time TEXT,
       room TEXT,
       registrationDeadline TEXT,
+      withdrawalDeadline TEXT,
+      withdrawalDeadlineMatchesRegistration INTEGER,
+      registrationSentAt TEXT,
+      registrationConfirmedAt TEXT,
       targetGrade TEXT,
       actualGrade TEXT,
       status TEXT,
@@ -460,7 +464,7 @@ export async function createSqliteBinaryFromAppDatabase(data: AppDatabase): Prom
 
   // Insert exams
   if (data.exams && data.exams.length > 0) {
-    const stmt = db.prepare('INSERT INTO exams VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    const stmt = db.prepare('INSERT INTO exams VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
     data.exams.forEach((ex) => {
       stmt.run([
         ex.id,
@@ -471,6 +475,10 @@ export async function createSqliteBinaryFromAppDatabase(data: AppDatabase): Prom
         ex.time,
         ex.room || '',
         ex.registrationDeadline || '',
+        ex.withdrawalDeadline || '',
+        ex.withdrawalDeadlineMatchesRegistration ? 1 : 0,
+        ex.registrationSentAt || '',
+        ex.registrationConfirmedAt || '',
         ex.targetGrade || '',
         ex.actualGrade || '',
         ex.status,
@@ -604,7 +612,7 @@ export async function parseSqliteBinaryToAppDatabase(sqliteBytes: Uint8Array): P
   let settings = {
     studentName: 'Student/in',
     university: 'Universität',
-    currentSemesterId: 'sem-1',
+    currentSemesterId: '',
     autoSaveEnabled: true,
     darkMode: true,
   };
@@ -652,7 +660,7 @@ export async function parseSqliteBinaryToAppDatabase(sqliteBytes: Uint8Array): P
     code: r.code,
     name: r.name,
     shortName: r.shortName || r.name,
-    semesterId: r.semesterId || 'sem-1',
+    semesterId: r.semesterId || '',
     stageId: r.stageId || undefined,
     credits: Number(r.credits) || 0,
     color: r.color || '#0d9488',
@@ -752,6 +760,10 @@ export async function parseSqliteBinaryToAppDatabase(sqliteBytes: Uint8Array): P
     time: r.time,
     room: r.room || '',
     registrationDeadline: r.registrationDeadline || undefined,
+    withdrawalDeadline: r.withdrawalDeadline || undefined,
+    withdrawalDeadlineMatchesRegistration: Boolean(r.withdrawalDeadlineMatchesRegistration),
+    registrationSentAt: r.registrationSentAt || undefined,
+    registrationConfirmedAt: r.registrationConfirmedAt || undefined,
     targetGrade: r.targetGrade || undefined,
     actualGrade: r.actualGrade || undefined,
     status: r.status,

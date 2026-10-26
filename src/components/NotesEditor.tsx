@@ -1092,7 +1092,7 @@ export const NotesEditor: React.FC<NotesEditorProps> = ({
                     </div>
                     <div className="p-2 bg-teal-950/20 border border-teal-900/30 rounded-lg text-[11px] text-teal-300/90 flex items-center gap-1.5">
                       <FlaskConical className="w-3.5 h-3.5 text-teal-400 shrink-0" />
-                      <span>Markdown &amp; Formeln: <code className="text-teal-200 font-mono font-semibold">##</code>, <code className="text-teal-200 font-mono font-semibold">**fett**</code>, <code className="text-teal-200 font-mono font-semibold">- Liste</code> und <code className="text-teal-200 font-mono font-semibold">($HA \rightarrow H^+ + A^-$)</code> werden formatiert.</span>
+                      <span>Markdown &amp; Formeln: <code className="text-teal-200 font-mono font-semibold">##</code> für Überschriften, <code className="text-teal-200 font-mono font-semibold">++fett++</code>, <code className="text-teal-200 font-mono font-semibold">- Liste</code> und <code className="text-teal-200 font-mono font-semibold">($HA \rightarrow H^+ + A^-$)</code> werden formatiert.</span>
                     </div>
                   </div>
 
@@ -1146,7 +1146,7 @@ export const NotesEditor: React.FC<NotesEditorProps> = ({
                     rows={14}
                     value={currentNote.content || ''}
                     onChange={(e) => setCurrentNote({ ...currentNote, content: e.target.value })}
-                    placeholder="Schreibe hier Vorlesungsinhalte, Definitionen, Konzepte, Formeln oder Mitschriften... (z.B. ## Überschrift, **fett**, ($HA \rightarrow H^+ + A^-$) oder [[Thema]])"
+                    placeholder="Schreibe hier Vorlesungsinhalte, Definitionen, Konzepte, Formeln oder Mitschriften... (z.B. ## Überschrift, ++fett++, ($HA \rightarrow H^+ + A^-$) oder [[Thema]])"
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-xs font-mono text-slate-200 leading-relaxed focus:outline-none focus:border-teal-500 resize-y"
                   />
 
@@ -2244,8 +2244,8 @@ export const NotesEditor: React.FC<NotesEditorProps> = ({
 
                 <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-2 font-mono">
                   <div>
-                    <span className="text-teal-400">**Fetter Text**</span>
-                    <span className="text-slate-400 text-[11px] font-sans ml-2">→ **Wichtig**</span>
+                    <span className="text-teal-400">++Fetter Text++</span>
+                    <span className="text-slate-400 text-[11px] font-sans ml-2">→ ++Wichtig++</span>
                   </div>
                   <div>
                     <span className="text-teal-400">*Kursiver Text*</span>

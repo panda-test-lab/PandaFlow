@@ -73,6 +73,18 @@ export const QUALITY_CRITERIA_LIST: { key: keyof QualityCheckList; label: string
   { key: 'knownSource', label: 'Quelle ist bekannt', description: 'Nachvollziehbare Literatur-, Buch- oder Vorlesungsquelle' },
 ];
 
+export function createEmptyQualityCheck(): QualityCheckList {
+  return {
+    singleAspect: false,
+    clearQuestion: false,
+    shortAnswer: false,
+    noUnnecessaryInfo: false,
+    notRedundant: false,
+    correctMapping: false,
+    knownSource: false,
+  };
+}
+
 export function getQualityScore(qc?: Partial<QualityCheckList>): {
   count: number;
   total: number;
@@ -223,15 +235,7 @@ export const AnkiInbox: React.FC<AnkiInboxProps> = ({
   const [deckNameInput, setDeckNameInput] = useState<string>('Studium::1_Semester');
 
   // Form State for Quality Control Checklist (default false)
-  const [qualityCheckForm, setQualityCheckForm] = useState<Partial<QualityCheckList>>({
-    singleAspect: false,
-    clearQuestion: false,
-    shortAnswer: false,
-    noUnnecessaryInfo: false,
-    notRedundant: false,
-    correctMapping: false,
-    knownSource: false,
-  });
+  const [qualityCheckForm, setQualityCheckForm] = useState<Partial<QualityCheckList>>(createEmptyQualityCheck);
 
   // Tag Manager State
   const [newTagToAdd, setNewTagToAdd] = useState<string>('');
@@ -365,15 +369,7 @@ export const AnkiInbox: React.FC<AnkiInboxProps> = ({
     setSelectedCardTags(['Semester::1._Semester', 'Status::Klausurrelevant']);
     setCustomTagInput('');
     setDeckNameInput('Studium::1_Semester');
-    setQualityCheckForm({
-      singleAspect: true,
-      clearQuestion: true,
-      shortAnswer: true,
-      noUnnecessaryInfo: true,
-      notRedundant: true,
-      correctMapping: true,
-      knownSource: true,
-    });
+    setQualityCheckForm(createEmptyQualityCheck());
     setShowAddModal(true);
   };
 
@@ -393,15 +389,7 @@ export const AnkiInbox: React.FC<AnkiInboxProps> = ({
     setCustomTagInput('');
     setDeckNameInput(c.deckName || 'Studium::1_Semester');
     setQualityCheckForm(
-      c.qualityCheck || {
-        singleAspect: true,
-        clearQuestion: true,
-        shortAnswer: true,
-        noUnnecessaryInfo: true,
-        notRedundant: true,
-        correctMapping: true,
-        knownSource: true,
-      }
+      c.qualityCheck || createEmptyQualityCheck()
     );
     setShowAddModal(true);
   };
@@ -1524,23 +1512,6 @@ export const AnkiInbox: React.FC<AnkiInboxProps> = ({
                     <ShieldCheck className="w-4 h-4 text-cyan-400" />
                     <span>Qualitätskontrolle (7 Kriterien Checkliste):</span>
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setQualityCheckForm({
-                        singleAspect: true,
-                        clearQuestion: true,
-                        shortAnswer: true,
-                        noUnnecessaryInfo: true,
-                        notRedundant: true,
-                        correctMapping: true,
-                        knownSource: true,
-                      });
-                    }}
-                    className="text-[11px] text-cyan-400 hover:text-cyan-300 font-medium"
-                  >
-                    Alle 7 abhaken
-                  </button>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2 p-3 bg-slate-950 rounded-xl border border-slate-800">

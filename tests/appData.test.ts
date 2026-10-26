@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { beforeEach, describe, it } from 'node:test';
 import { webcrypto } from 'node:crypto';
+import { isValidElement } from 'react';
+import { createEmptyQualityCheck, getQualityScore } from '../src/components/AnkiInbox';
 import {
   addById,
   deleteEventAndRelations,
@@ -37,7 +39,15 @@ import {
   saveDatabase,
 } from '../src/services/storage';
 import { saveEncryptedDatabaseToAppDirectory } from '../src/services/appDirectoryStorage';
-import { decryptSqliteData, encryptSqliteData, isEncryptedSqlite, isRawSqlite } from '../src/services/sqliteService';
+import {
+  decryptSqliteData,
+  encryptSqliteData,
+  isEncryptedSqlite,
+  isRawSqlite,
+} from '../src/services/sqliteService';
+import { getExamRegistrationDeadlines } from '../src/utils/examDeadlines';
+import { isMarkdownBlockText, renderInlineMarkdown } from '../src/utils/markdownRenderer';
+import { isEventScheduledOnDate } from '../src/utils/schedule';
 import {
   AnkiCard,
   AppDatabase,
@@ -108,6 +118,9 @@ describe('Datenbank-Persistenz', () => {
 
   it('startet ohne Demo-Module und Beispieldaten', () => {
     const database = loadDatabase();
+    assert.deepEqual(database.studyStages, []);
+    assert.deepEqual(database.semesters, []);
+    assert.equal(database.settings.currentSemesterId, '');
     assert.deepEqual(database.modules, []);
     assert.deepEqual(database.events, []);
     assert.deepEqual(database.notes, []);
@@ -132,6 +145,23 @@ describe('Datenbank-Persistenz', () => {
         lecturer: 'Dr. Beispiel',
         description: '',
       }],
+      exams: [{
+        id: 'exam-registration',
+        moduleId: 'module-1',
+        title: 'Prüfung',
+        type: 'Klausur',
+        date: '2026-12-01',
+        time: '09:00',
+        room: '',
+        registrationDeadline: '2026-11-15',
+        withdrawalDeadline: '2026-11-20',
+        withdrawalDeadlineMatchesRegistration: false,
+        registrationSentAt: '2026-11-01T10:00:00.000Z',
+        registrationConfirmedAt: '2026-11-01T11:00:00.000Z',
+        status: 'geplant',
+        weightEcts: 5,
+        linkedTopicIds: [],
+      }],
     };
 
     saveDatabase(data);
@@ -139,6 +169,7 @@ describe('Datenbank-Persistenz', () => {
 
     assert.equal(loaded.modules.length, 1);
     assert.equal(loaded.modules[0].code, 'BIO-101');
+    assert.deepEqual(loaded.exams, data.exams);
     assert.notEqual(loaded.lastUpdated, data.lastUpdated);
     assert.equal(data.modules.length, 1);
   });
@@ -180,8 +211,93 @@ describe('Datenbank-Persistenz', () => {
     const loaded = loadDatabase();
     assert.equal(loaded.semesters[0].number, 2);
     assert.equal(loaded.semesters[0].termName, 'SoSe 2027');
-    assert.equal(loaded.semesters[0].stageId, 'stage-grund');
+    assert.equal(loaded.semesters[0].stageId, undefined);
+    assert.deepEqual(loaded.studyStages, []);
     assert.deepEqual(loaded.modules, []);
+  });
+
+  describe('Dashboard-Tagesdaten', () => {
+    it('zeigt nur Veranstaltungen, die am Datum nach Stundenplan stattfinden', () => {
+      const semester: Semester = {
+        id: 'sem-1', number: 1, name: 'Semester', status: 'aktiv',
+        startDate: '2026-10-01', endDate: '2027-03-31',
+      };
+      const recurringEvent: EventCourse = {
+        id: 'event-1', moduleId: 'module-1', title: 'Vorlesung', type: 'vorlesung',
+        dayOfWeek: 1, startTime: '08:00', endTime: '09:00', room: '', lecturer: '',
+        isRecurring: true, semesterId: semester.id,
+      };
+
+      assert.equal(isEventScheduledOnDate(recurringEvent, '2026-10-26', [semester]), true);
+      assert.equal(isEventScheduledOnDate(recurringEvent, '2026-09-28', [semester]), false);
+      assert.equal(isEventScheduledOnDate(recurringEvent, '2026-10-27', [semester]), false);
+      assert.equal(isEventScheduledOnDate({
+        ...recurringEvent, date: '2026-10-27', dayOfWeek: 2,
+      }, '2026-10-27', [semester]), true);
+      assert.equal(isEventScheduledOnDate({
+        ...recurringEvent, dayOfWeek: 2, isRecurring: false, startDate: '2026-10-26', endDate: '2026-10-27',
+      }, '2026-10-27', [semester]), true);
+    });
+
+    describe('Markdown-Formatierung', () => {
+      it('formatiert ++ als Fetttext und reserviert ## für Überschriften', () => {
+        const [bold] = renderInlineMarkdown('++Wichtig++');
+        assert.ok(isValidElement(bold));
+        assert.equal(bold.type, 'strong');
+        assert.equal(isMarkdownBlockText('## Überschrift 2'), true);
+        const [headingText] = renderInlineMarkdown('## Überschrift 2');
+        assert.ok(isValidElement(headingText));
+        assert.notEqual(headingText.type, 'strong');
+      });
+
+      describe('Anki-Qualitätscheckliste', () => {
+        it('startet neue Karten ohne vorausgewählte Kriterien', () => {
+          const checklist = createEmptyQualityCheck();
+          assert.equal(getQualityScore(checklist).count, 0);
+          assert.equal(getQualityScore(checklist).isComplete, false);
+          assert.ok(Object.values(checklist).every((checked) => checked === false));
+        });
+      });
+    });
+
+    it('leitet aktive Prüfungsanmeldefristen für Fristenliste und Dashboard ab', () => {
+      const exam: Exam = {
+        id: 'exam-1', moduleId: 'module-1', title: 'Klausur', type: 'Schriftliche Prüfung',
+        date: '2026-12-01', time: '09:00', room: '', registrationDeadline: '2026-11-15',
+        status: 'geplant', weightEcts: 5, linkedTopicIds: [],
+      };
+      const deadlines = getExamRegistrationDeadlines([
+        exam,
+        { ...exam, id: 'exam-passed', status: 'bestanden' },
+        { ...exam, id: 'exam-no-deadline', registrationDeadline: undefined },
+      ]);
+
+      assert.equal(deadlines.length, 1);
+      assert.equal(deadlines[0].id, 'reg-dl-exam-1');
+      assert.equal(deadlines[0].dueDate, '2026-11-15');
+      assert.equal(deadlines[0].type, 'anmeldung');
+
+      const emailSentExam = {
+        ...exam,
+        withdrawalDeadline: '2026-11-20',
+        registrationSentAt: '2026-11-01T10:00:00.000Z',
+      };
+      assert.deepEqual(
+        getExamRegistrationDeadlines([emailSentExam]).map(({ id }) => id),
+        ['reg-dl-exam-1']
+      );
+
+      const confirmedExam = {
+        ...emailSentExam,
+        registrationConfirmedAt: '2026-11-01T11:00:00.000Z',
+        withdrawalDeadline: '2026-11-20',
+      };
+      const confirmedDeadlines = getExamRegistrationDeadlines([confirmedExam]);
+      assert.equal(confirmedDeadlines.length, 1);
+      assert.equal(confirmedDeadlines[0].id, 'withdrawal-dl-exam-1');
+      assert.equal(confirmedDeadlines[0].dueDate, '2026-11-20');
+      assert.equal(confirmedDeadlines[0].type, 'ruecktritt');
+    });
   });
 
   it('löscht den gespeicherten Zustand und stellt die leere Datenbank wieder her', () => {

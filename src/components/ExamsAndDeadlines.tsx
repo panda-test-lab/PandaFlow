@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Exam, DeadlineItem, Module, LearningTopic, ExamType, ExamStatus } from '../types';
+import { getExamRegistrationDeadlines, isExamRegistrationConfirmed } from '../utils/examDeadlines';
 
 interface ExamsAndDeadlinesProps {
   exams: Exam[];
@@ -116,6 +117,8 @@ export const ExamsAndDeadlines: React.FC<ExamsAndDeadlinesProps> = ({
     time: '10:00',
     room: 'Hörsaal A101',
     registrationDeadline: new Date(Date.now() + 86400000 * 10).toISOString().split('T')[0],
+    withdrawalDeadline: '',
+    withdrawalDeadlineMatchesRegistration: false,
     targetGrade: '1.7',
     actualGrade: '',
     status: 'vorbereitung',
@@ -136,6 +139,7 @@ export const ExamsAndDeadlines: React.FC<ExamsAndDeadlinesProps> = ({
   });
 
   const getModule = (modId?: string) => modules.find((m) => m.id === modId);
+  const allDeadlines = [...deadlines, ...getExamRegistrationDeadlines(exams)];
 
   const calculateDaysRemaining = (dateStr: string) => {
     const target = new Date(dateStr).getTime();
@@ -158,6 +162,8 @@ export const ExamsAndDeadlines: React.FC<ExamsAndDeadlinesProps> = ({
       time: '10:00',
       room: 'Hörsaal Liebig C101',
       registrationDeadline: new Date(Date.now() + 86400000 * 10).toISOString().split('T')[0],
+      withdrawalDeadline: '',
+      withdrawalDeadlineMatchesRegistration: false,
       targetGrade: '1.7',
       actualGrade: '',
       status: 'vorbereitung',
@@ -175,7 +181,11 @@ export const ExamsAndDeadlines: React.FC<ExamsAndDeadlinesProps> = ({
     if (!isPreset) setCustomExamTypeInput(ex.type);
     setTopicSearchQuery('');
     setShowTopicSuggestions(false);
-    setExamForm({ ...ex });
+    setExamForm({
+      ...ex,
+      withdrawalDeadlineMatchesRegistration: ex.withdrawalDeadlineMatchesRegistration ??
+        Boolean(ex.registrationDeadline && ex.withdrawalDeadline === ex.registrationDeadline),
+    });
     setShowExamModal(true);
   };
 
@@ -317,6 +327,8 @@ export const ExamsAndDeadlines: React.FC<ExamsAndDeadlinesProps> = ({
         time: examForm.time || '10:00',
         room: examForm.room || '',
         registrationDeadline: examForm.registrationDeadline,
+        withdrawalDeadline: examForm.withdrawalDeadline || undefined,
+        withdrawalDeadlineMatchesRegistration: Boolean(examForm.withdrawalDeadlineMatchesRegistration),
         targetGrade: examForm.targetGrade,
         actualGrade: examForm.actualGrade,
         status: examForm.status || 'vorbereitung',
@@ -334,6 +346,8 @@ export const ExamsAndDeadlines: React.FC<ExamsAndDeadlinesProps> = ({
         time: examForm.time || '10:00',
         room: examForm.room || '',
         registrationDeadline: examForm.registrationDeadline,
+        withdrawalDeadline: examForm.withdrawalDeadline || undefined,
+        withdrawalDeadlineMatchesRegistration: Boolean(examForm.withdrawalDeadlineMatchesRegistration),
         targetGrade: examForm.targetGrade,
         actualGrade: examForm.actualGrade,
         status: examForm.status || 'vorbereitung',
@@ -483,7 +497,7 @@ export const ExamsAndDeadlines: React.FC<ExamsAndDeadlinesProps> = ({
           }`}
         >
           <Clock className="w-3.5 h-3.5" />
-          <span>Fristen & Abgaben ({deadlines.length})</span>
+          <span>Fristen & Abgaben ({allDeadlines.length})</span>
         </button>
       </div>
 
@@ -573,7 +587,7 @@ export const ExamsAndDeadlines: React.FC<ExamsAndDeadlinesProps> = ({
                         <span className="truncate">Raum: {exam.room || 'Wird bekanntgegeben'}</span>
                       </div>
 
-                      {exam.registrationDeadline && exam.status !== 'bestanden' && exam.status !== 'nicht_bestanden' && (
+                      {exam.registrationDeadline && exam.status !== 'bestanden' && exam.status !== 'nicht_bestanden' && !isExamRegistrationConfirmed(exam) && (
                         <div className="pt-1 border-t border-slate-800 flex flex-wrap items-center justify-between gap-1 text-[11px]">
                           <span className="text-slate-500">Anmeldefrist:</span>
                           <span
@@ -590,6 +604,56 @@ export const ExamsAndDeadlines: React.FC<ExamsAndDeadlinesProps> = ({
                           </span>
                         </div>
                       )}
+                      {exam.withdrawalDeadline && isExamRegistrationConfirmed(exam) && (
+                        <div className="pt-1 border-t border-slate-800 flex flex-wrap items-center justify-between gap-1 text-[11px]">
+                          <span className="text-slate-500">Rücktrittsfrist:</span>
+                          <span className="font-mono text-slate-400">bis {exam.withdrawalDeadline}</span>
+                        </div>
+                      )}
+                      <div className="pt-2 border-t border-slate-800 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <label className="flex items-start gap-2 text-[11px] text-slate-300 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(exam.registrationSentAt)}
+                            onChange={(event) => {
+                              const registrationSentAt = event.target.checked ? new Date().toISOString() : undefined;
+                              onUpdateExam({
+                                ...exam,
+                                registrationSentAt,
+                                registrationConfirmedAt: registrationSentAt ? exam.registrationConfirmedAt : undefined,
+                              });
+                            }}
+                            className="mt-0.5 accent-teal-500"
+                          />
+                          <span>
+                            <span className="block font-medium">Angemeldet (E-Mail gesendet)</span>
+                            {exam.registrationSentAt && (
+                              <span className="block text-slate-500">{new Date(exam.registrationSentAt).toLocaleString('de-DE')}</span>
+                            )}
+                          </span>
+                        </label>
+                        <label className={`flex items-start gap-2 text-[11px] cursor-pointer ${exam.registrationSentAt ? 'text-slate-300' : 'text-slate-600'}`}>
+                          <input
+                            type="checkbox"
+                            checked={Boolean(exam.registrationConfirmedAt)}
+                            disabled={!exam.registrationSentAt}
+                            onChange={(event) => onUpdateExam({
+                              ...exam,
+                              registrationConfirmedAt: event.target.checked ? new Date().toISOString() : undefined,
+                            })}
+                            className="mt-0.5 accent-teal-500"
+                          />
+                          <span>
+                            <span className="block font-medium">Bestätigung erhalten</span>
+                            {exam.registrationConfirmedAt && (
+                              <span className="block text-slate-500">{new Date(exam.registrationConfirmedAt).toLocaleString('de-DE')}</span>
+                            )}
+                          </span>
+                        </label>
+                      </div>
+                      <p className="text-[10px] text-slate-500">
+                        Verbindlich angemeldet gilt die Prüfung erst nach Eingang der Bestätigung.
+                      </p>
                     </div>
 
                     {/* Linked Topics Checklist */}
@@ -667,19 +731,7 @@ export const ExamsAndDeadlines: React.FC<ExamsAndDeadlinesProps> = ({
       {activeTab === 'deadlines' && (
         <div className="space-y-3">
           <div className="bg-slate-900 border border-slate-800 rounded-xl divide-y divide-slate-800 overflow-hidden shadow-lg">
-            {[...deadlines, ...exams
-              .filter((e) => e.registrationDeadline && e.status !== 'bestanden' && e.status !== 'nicht_bestanden')
-              .map((e) => ({
-                id: `reg-dl-${e.id}`,
-                title: `Anmeldefrist: ${e.title}`,
-                dueDate: e.registrationDeadline!,
-                moduleId: e.moduleId,
-                type: 'anmeldung' as const,
-                isCompleted: false,
-                priority: 'dringend' as const,
-                details: `Anmeldung für: ${e.title} (${e.date})`
-              }))
-            ]
+            {allDeadlines
             .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
             .map((dl) => {
               const mod = getModule(dl.moduleId);
@@ -717,9 +769,13 @@ export const ExamsAndDeadlines: React.FC<ExamsAndDeadlinesProps> = ({
                             {mod.code}
                           </span>
                         )}
-                        {dl.type === 'anmeldung' && (
-                          <span className="text-[10px] uppercase font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">
-                            Anmeldung
+                        {(dl.type === 'anmeldung' || dl.type === 'ruecktritt') && (
+                          <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${
+                            dl.type === 'anmeldung'
+                              ? 'text-amber-400 bg-amber-500/10'
+                              : 'text-violet-300 bg-violet-500/10'
+                          }`}>
+                            {dl.type === 'anmeldung' ? 'Anmeldung' : 'Rücktritt'}
                           </span>
                         )}
                         <span
@@ -944,11 +1000,45 @@ export const ExamsAndDeadlines: React.FC<ExamsAndDeadlinesProps> = ({
                   </label>
                   <input
                     type="date"
-                    value={examForm.registrationDeadline}
-                    onChange={(e) => setExamForm({ ...examForm, registrationDeadline: e.target.value })}
+                    value={examForm.registrationDeadline || ''}
+                    onChange={(e) => setExamForm({
+                      ...examForm,
+                      registrationDeadline: e.target.value,
+                      ...(examForm.withdrawalDeadlineMatchesRegistration
+                        ? { withdrawalDeadline: e.target.value }
+                        : {}),
+                    })}
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-amber-500"
                   />
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <div>
+                  <label className="text-xs font-medium text-slate-300 block mb-1">
+                    Rücktrittsfrist
+                  </label>
+                  <input
+                    type="date"
+                    value={examForm.withdrawalDeadline || ''}
+                    disabled={Boolean(examForm.withdrawalDeadlineMatchesRegistration)}
+                    onChange={(e) => setExamForm({ ...examForm, withdrawalDeadline: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-amber-500 disabled:opacity-50"
+                  />
+                </div>
+                <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(examForm.withdrawalDeadlineMatchesRegistration)}
+                    onChange={(e) => setExamForm({
+                      ...examForm,
+                      withdrawalDeadlineMatchesRegistration: e.target.checked,
+                      withdrawalDeadline: e.target.checked ? examForm.registrationDeadline || '' : examForm.withdrawalDeadline,
+                    })}
+                    className="accent-amber-500"
+                  />
+                  Rücktrittsfrist entspricht der Anmeldefrist
+                </label>
               </div>
 
               <div className="grid grid-cols-2 gap-3">

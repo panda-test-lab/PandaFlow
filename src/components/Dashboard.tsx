@@ -25,6 +25,8 @@ import {
   LearningTopic, 
   AnkiCard 
 } from '../types';
+import { getExamRegistrationDeadlines } from '../utils/examDeadlines';
+import { formatLocalDate, isEventScheduledOnDate } from '../utils/schedule';
 
 interface DashboardProps {
   data: AppDatabase;
@@ -59,27 +61,24 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const today = new Date();
   const rawDay = today.getDay();
   const currentDayOfWeek = rawDay === 0 ? 7 : rawDay;
-
-  // If today has no classes (e.g. weekend), preview Monday
-  const dayToDisplay = currentDayOfWeek >= 1 && currentDayOfWeek <= 5 ? currentDayOfWeek : 1;
+  const todayStr = formatLocalDate(today);
   const dayNames = ['', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
 
   const todayEvents = data.events
-    .filter((e) => e.dayOfWeek === dayToDisplay)
+    .filter((event) => isEventScheduledOnDate(event, todayStr, data.semesters))
     .sort((a, b) => a.startTime.localeCompare(b.startTime));
 
-  // Upcoming Exams (next 90 days)
+  // Upcoming Exams
   const upcomingExams = data.exams
-    .filter((e) => e.status !== 'bestanden')
+    .filter((e) => e.status !== 'bestanden' && e.status !== 'nicht_bestanden' && e.date >= todayStr)
     .sort((a, b) => a.date.localeCompare(b.date));
 
   // Pending Deadlines
-  const pendingDeadlines = data.deadlines
+  const pendingDeadlines = [...data.deadlines, ...getExamRegistrationDeadlines(data.exams)]
     .filter((d) => !d.isCompleted)
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
 
   // Due, High Learning Need, or Exam-Relevant Learning Topics
-  const todayStr = new Date().toISOString().split('T')[0];
   const nowTime = new Date().setHours(0, 0, 0, 0);
 
   const dueTopics = data.topics.filter((t) => {
@@ -152,10 +151,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <div className="space-y-1.5 min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <span className="text-xs font-mono font-semibold text-teal-400 uppercase tracking-wider truncate">
-                {currentSemester?.name || '1. Fachsemester'}
+                {currentSemester?.name || 'Noch kein Semester angelegt'}
               </span>
-              <span className="text-slate-600">·</span>
-              <span className="text-xs text-slate-400">WS 2026/2027</span>
+              {currentSemester?.termName && (
+                <>
+                  <span className="text-slate-600">·</span>
+                  <span className="text-xs text-slate-400">{currentSemester.termName}</span>
+                </>
+              )}
             </div>
             <h1 className="text-xl sm:text-2xl font-bold text-slate-100 tracking-tight break-words">
               {(() => {
@@ -212,12 +215,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 </div>
                 <div className="min-w-0">
                   <h3 className="text-sm font-semibold text-slate-100 truncate">
-                    Stundenplan {dayNames[dayToDisplay]}
+                    Stundenplan {dayNames[currentDayOfWeek]}
                   </h3>
                   <span className="text-[11px] text-slate-400 truncate block">
-                    {currentDayOfWeek >= 1 && currentDayOfWeek <= 5
-                      ? 'Heutige Veranstaltungen'
-                      : 'Vorschau für den nächsten Studientag (Montag)'}
+                    Heutige Veranstaltungen
                   </span>
                 </div>
               </div>
@@ -291,7 +292,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
               {todayEvents.length === 0 && (
                 <div className="p-6 text-center text-slate-500 text-xs">
-                  Keine Veranstaltungen für diesen Tag eingetragen.
+                  Keine heutigen Veranstaltungen eingetragen.
                 </div>
               )}
             </div>
@@ -329,6 +330,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       <div className="flex items-start gap-2 flex-1 min-w-0">
                         <button
                           onClick={() => onToggleDeadline(dl)}
+                          disabled={dl.id.startsWith('reg-dl-')}
                           className="mt-0.5 w-4 h-4 rounded border border-slate-700 hover:border-teal-500 flex items-center justify-center text-slate-400 shrink-0"
                         >
                           {dl.isCompleted && <Check className="w-3 h-3 text-teal-400" />}

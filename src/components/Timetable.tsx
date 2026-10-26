@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { EventCourse, Module, EventType, ModuleHandbook, Semester, StudyStage } from '../types';
 import { TimetableImporter } from './TimetableImporter';
+import { isEventScheduledOnDate } from '../utils/schedule';
 
 interface TimetableProps {
   events: EventCourse[];
@@ -124,7 +125,7 @@ export const Timetable: React.FC<TimetableProps> = ({
         return semStart;
       }
     }
-    return new Date('2026-10-12');
+    return today;
   }, [activeSemester]);
 
   // Current selected week Monday
@@ -159,8 +160,8 @@ export const Timetable: React.FC<TimetableProps> = ({
     lecturer: '',
     notes: '',
     isRecurring: true,
-    startDate: activeSemester?.startDate || '2026-10-12',
-    endDate: activeSemester?.endDate || '2027-02-06',
+    startDate: activeSemester?.startDate || formatDateIso(new Date()),
+    endDate: activeSemester?.endDate || '',
     date: '',
   });
 
@@ -244,45 +245,11 @@ export const Timetable: React.FC<TimetableProps> = ({
 
   // Check if an event takes place on a specific day of the week
   const isEventScheduledOnDay = (event: EventCourse, dayNum: number, dayIsoDate: string): boolean => {
-    // 1. Day of week match
-    if (event.dayOfWeek !== dayNum) return false;
-
     // In generic mode, show all recurring events
     if (viewMode === 'generic') {
-      return event.isRecurring !== false;
+      return event.dayOfWeek === dayNum && event.isRecurring !== false;
     }
-
-    // In week mode (the detailed week-by-week calendar view):
-    // Case A: Specific single date event
-    if (event.date) {
-      return event.date === dayIsoDate;
-    }
-
-    // Case B: Event with explicit startDate / endDate boundary
-    if (event.startDate && dayIsoDate < event.startDate) {
-      return false; // has not begun yet
-    }
-    if (event.endDate && dayIsoDate > event.endDate) {
-      return false; // already ended
-    }
-
-    // Case C: Non-recurring event without specific single date
-    if (event.isRecurring === false) {
-      if (event.startDate && event.endDate) {
-        return dayIsoDate >= event.startDate && dayIsoDate <= event.endDate;
-      }
-      return false;
-    }
-
-    // Case D: General recurring event without date limits
-    // If it is bound to a semester, check semester validity
-    if (!event.startDate && !event.endDate && event.semesterId) {
-      const sem = semesters.find((s) => s.id === event.semesterId);
-      if (sem?.startDate && dayIsoDate < sem.startDate) return false;
-      if (sem?.endDate && dayIsoDate > sem.endDate) return false;
-    }
-
-    return true;
+    return isEventScheduledOnDate(event, dayIsoDate, semesters);
   };
 
   // Filter events based on active dropdowns and current week
@@ -367,8 +334,8 @@ export const Timetable: React.FC<TimetableProps> = ({
       lecturer: '',
       notes: '',
       isRecurring: true,
-      startDate: activeSemester?.startDate || '2026-10-12',
-      endDate: activeSemester?.endDate || '2027-02-06',
+      startDate: activeSemester?.startDate || formatDateIso(new Date()),
+      endDate: activeSemester?.endDate || '',
       date: '',
     });
     setShowAddModal(true);

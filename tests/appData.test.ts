@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { beforeEach, describe, it } from 'node:test';
 import { webcrypto } from 'node:crypto';
-import { isValidElement } from 'react';
+import { createElement, isValidElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { createEmptyQualityCheck, getQualityScore } from '../src/components/AnkiInbox';
 import {
   addById,
@@ -46,7 +47,7 @@ import {
   isRawSqlite,
 } from '../src/services/sqliteService';
 import { getExamRegistrationDeadlines } from '../src/utils/examDeadlines';
-import { isMarkdownBlockText, renderInlineMarkdown } from '../src/utils/markdownRenderer';
+import { isMarkdownBlockText, MarkdownRenderer, renderInlineMarkdown } from '../src/utils/markdownRenderer';
 import { isEventScheduledOnDate } from '../src/utils/schedule';
 import {
   AnkiCard,
@@ -248,6 +249,17 @@ describe('Datenbank-Persistenz', () => {
         const [headingText] = renderInlineMarkdown('## Überschrift 2');
         assert.ok(isValidElement(headingText));
         assert.notEqual(headingText.type, 'strong');
+      });
+
+      it('verarbeitet unvollständige Überschriften-Zeilen ohne den Renderer aufzuhalten', () => {
+        const markup = renderToStaticMarkup(createElement(MarkdownRenderer, {
+          content: 'Einleitung\n##\n### Überschrift',
+        }));
+
+        assert.match(markup, /Einleitung/);
+        assert.match(markup, /##/);
+        assert.match(markup, /<h3/);
+        assert.match(markup, /Überschrift/);
       });
 
       describe('Anki-Qualitätscheckliste', () => {

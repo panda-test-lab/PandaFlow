@@ -1,6 +1,6 @@
 [package]
 name = "pandaflow"
-version = "1.1.1"
+version = "1.1.2"
 description = "PandaFlow - Dein Studium. Zusammen gedacht."
 authors = ["PandaFlow"]
 edition = "2021"

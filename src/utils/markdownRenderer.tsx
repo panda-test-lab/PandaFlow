@@ -556,6 +556,11 @@ function parseMarkdownBlocks(rawText: string): BlockNode[] {
         type: 'paragraph',
         lines: paraLines,
       });
+    } else {
+      // Keep malformed or incomplete block markers (for example a bare "##")
+      // as text, and guarantee that every parser iteration consumes a line.
+      blocks.push({ type: 'paragraph', lines: [line] });
+      i++;
     }
   }
 

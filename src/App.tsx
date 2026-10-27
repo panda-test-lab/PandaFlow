@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { 
   AppDatabase, 
   EventCourse, 
@@ -81,6 +81,7 @@ export default function App() {
     setReactData(nextData);
   };
   const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const mainScrollContainerRef = useRef<HTMLElement>(null);
   const [showHandbookModal, setShowHandbookModal] = useState<boolean>(false);
   const [showRegulationsModal, setShowRegulationsModal] = useState<boolean>(false);
   const [reviewingTopic, setReviewingTopic] = useState<LearningTopic | null>(null);
@@ -159,6 +160,12 @@ export default function App() {
     setNavParams(params || {});
     setActiveTab(tabId);
   };
+
+  useLayoutEffect(() => {
+    if (activeTab === 'mitschriften' && mainScrollContainerRef.current) {
+      mainScrollContainerRef.current.scrollTop = 0;
+    }
+  }, [activeTab]);
 
   function rejectDuplicate<T extends { id: string }>(
     records: T[],
@@ -637,7 +644,7 @@ export default function App() {
         />
 
         {/* Viewport Scroll Container */}
-        <main className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6 min-w-0">
+        <main ref={mainScrollContainerRef} className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6 min-w-0">
           <div className="max-w-7xl mx-auto pb-12 min-w-0">
             {appError && (
               <div role="alert" className="mb-4 flex items-start gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-100">

@@ -58,6 +58,7 @@ import {
   NoteChecklistNotionLM
 } from '../types';
 import { logError } from '../services/logger';
+import { CornellNoteSheet } from './CornellNoteSheet';
 
 interface NotesEditorProps {
   notes: LectureNote[];
@@ -1004,8 +1005,21 @@ export const NotesEditor: React.FC<NotesEditorProps> = ({
               )}
 
               {/* MITSCHRIFT (MARKDOWN & WIKILINKS) */}
+              <CornellNoteSheet
+                note={isEditing ? currentNote : activeNote}
+                module={getModule((isEditing ? currentNote.moduleId : activeNote.moduleId) || '')}
+                course={events.find((event) => event.id === (isEditing ? currentNote.courseId : activeNote.courseId))}
+                editing={isEditing}
+                onChange={(patch) => {
+                  if (isEditing) {
+                    setCurrentNote((previous) => ({ ...previous, ...patch }));
+                  } else {
+                    onUpdateNote({ ...activeNote, ...patch });
+                  }
+                }}
+              />
               {isEditing ? (
-                <div className="space-y-2">
+                <div className="hidden space-y-2">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <label className="text-xs font-bold text-slate-300 block uppercase tracking-wider">
                       Mitschrift (Markdown, Formeln &amp; [[WikiLinks]]):
@@ -1170,7 +1184,7 @@ export const NotesEditor: React.FC<NotesEditorProps> = ({
                   )}
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="hidden space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
                       Mitschrift:

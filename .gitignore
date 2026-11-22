@@ -8,6 +8,7 @@ coverage/
 .env*
 !.env.example
 __pycache__/
+Python_old/
 *.pyc
 *.bat
 *.key*

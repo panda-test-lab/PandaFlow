@@ -93,6 +93,37 @@ export interface NoteChecklistNotionLM {
   ankiGenerated: boolean;        // Anki-Kandidaten erzeugt
 }
 
+export interface CornellPage {
+  id: string;
+  content: string;
+  summary?: string;
+}
+
+export interface CornellReference {
+  id: string;
+  type: 'P' | 'S';
+  number: number;
+  text: string;
+  line: number;
+  pageId?: string;
+  slot?: number;
+}
+
+export interface CornellImage {
+  id: string;
+  number: number;
+  name: string;
+  dataUrl: string;
+  width?: number;
+  height?: number;
+}
+
+export interface CornellMarkerColors {
+  questions?: string;
+  keywords?: string;
+  enabled?: boolean;
+}
+
 export interface LectureNote {
   id: string;
   moduleId: string;
@@ -124,6 +155,10 @@ export interface LectureNote {
   checklistShortTerm?: Partial<NoteChecklistShortTerm>;
   checklistExamPrep?: Partial<NoteChecklistExamPrep>;
   checklistNotionLM?: Partial<NoteChecklistNotionLM>;
+  cornellPages?: CornellPage[];
+  cornellReferences?: CornellReference[];
+  cornellImages?: CornellImage[];
+  cornellMarkerColors?: CornellMarkerColors;
 }
 
 export type MasteryLevel = 'neu' | 'wiederholen' | 'in_arbeit' | 'gemeistert';

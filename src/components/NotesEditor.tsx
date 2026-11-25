@@ -54,8 +54,7 @@ import {
   StudyMaterial,
   Exam,
   NoteChecklistShortTerm,
-  NoteChecklistExamPrep,
-  NoteChecklistNotionLM
+  NoteChecklistExamPrep
 } from '../types';
 import { logError } from '../services/logger';
 import { CornellNoteSheet } from './CornellNoteSheet';
@@ -120,6 +119,10 @@ export const NotesEditor: React.FC<NotesEditorProps> = ({
   const [formulaTesterInput, setFormulaTesterInput] = useState<string>('($HA \\rightarrow H^+ + A^-)');
   const [formulaCopied, setFormulaCopied] = useState<boolean>(false);
   const contentTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const summaryTransferHandlerRef = useRef<((
+    kind: 'connections' | 'insights',
+    text: string,
+  ) => void) | null>(null);
 
   const insertSymbolIntoContent = (symbol: string) => {
     const textarea = contentTextareaRef.current;
@@ -181,7 +184,6 @@ export const NotesEditor: React.FC<NotesEditorProps> = ({
   // Collapsible Sections Toggle State
   const [openChecklistShortTerm, setOpenChecklistShortTerm] = useState<boolean>(false);
   const [openChecklistExamPrep, setOpenChecklistExamPrep] = useState<boolean>(false);
-  const [openChecklistNotionLM, setOpenChecklistNotionLM] = useState<boolean>(false);
 
   // Form state for editing or creating note
   const [currentNote, setCurrentNote] = useState<Partial<LectureNote>>({
@@ -202,7 +204,6 @@ export const NotesEditor: React.FC<NotesEditorProps> = ({
     linkedMaterialIds: [],
     checklistShortTerm: {},
     checklistExamPrep: {},
-    checklistNotionLM: {},
   });
 
   // Inputs for list sections
@@ -212,6 +213,10 @@ export const NotesEditor: React.FC<NotesEditorProps> = ({
   const [insightInput, setInsightInput] = useState('');
   const [examHintInput, setExamHintInput] = useState('');
   const [tagInput, setTagInput] = useState('');
+
+  const queueSummaryTransfer = (kind: 'connections' | 'insights', text: string) => {
+    summaryTransferHandlerRef.current?.(kind, text);
+  };
 
   // Inline Creation Inputs for Lernthemen & Quellen (nur sichtbar, wenn gewünscht oder nicht vorhanden)
   const [newTopicTitleInput, setNewTopicTitleInput] = useState('');
@@ -300,11 +305,6 @@ export const NotesEditor: React.FC<NotesEditorProps> = ({
         sourcesLookedUp: false,
         ankiCandidatesChecked: false,
       },
-      checklistNotionLM: {
-        summaryGenerated: false,
-        quizGenerated: false,
-        ankiGenerated: false,
-      },
     };
 
     onAddNote(noteTemplate);
@@ -391,7 +391,6 @@ export const NotesEditor: React.FC<NotesEditorProps> = ({
       linkedMaterialIds: currentNote.linkedMaterialIds || [],
       checklistShortTerm: currentNote.checklistShortTerm || {},
       checklistExamPrep: currentNote.checklistExamPrep || {},
-      checklistNotionLM: currentNote.checklistNotionLM || {},
     };
     onUpdateNote(updated);
     const timeStr = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
@@ -451,7 +450,6 @@ export const NotesEditor: React.FC<NotesEditorProps> = ({
         linkedMaterialIds: draft.linkedMaterialIds || [],
         checklistShortTerm: draft.checklistShortTerm || {},
         checklistExamPrep: draft.checklistExamPrep || {},
-        checklistNotionLM: draft.checklistNotionLM || {},
       };
 
       if (JSON.stringify({ ...updated, updatedAt: savedNote.updatedAt }) === JSON.stringify(savedNote)) return;
@@ -612,19 +610,6 @@ export const NotesEditor: React.FC<NotesEditorProps> = ({
     }
   };
 
-  const handleToggleNotionLMCheck = (key: keyof NonNullable<LectureNote['checklistNotionLM']>) => {
-    const currentVal = !!(currentNote.checklistNotionLM && currentNote.checklistNotionLM[key]);
-    const updated = {
-      ...(currentNote.checklistNotionLM || {}),
-      [key]: !currentVal,
-    };
-    const newNoteState = { ...currentNote, checklistNotionLM: updated };
-    setCurrentNote(newNoteState);
-    if (activeNote && !isEditing) {
-      onUpdateNote({ ...activeNote, checklistNotionLM: updated });
-    }
-  };
-
   // Helper renderer for dynamic item list sections (like Kernaussagen)
   const renderListSection = (
     title: string,
@@ -634,7 +619,8 @@ export const NotesEditor: React.FC<NotesEditorProps> = ({
     inputValue: string,
     setInputValue: (v: string) => void,
     placeholderText: string,
-    emptyMessage: string
+    emptyMessage: string,
+    onItemClick?: (item: string) => void,
   ) => {
     const items = (isEditing ? currentNote[field] : activeNote?.[field]) || [];
 
@@ -651,23 +637,49 @@ export const NotesEditor: React.FC<NotesEditorProps> = ({
           {items.map((item, idx) => (
             <div
               key={idx}
-              className="flex items-start justify-between gap-2 p-2 bg-slate-900/80 border border-slate-800/80 rounded-lg text-xs text-slate-200"
+              className="flex items-start gap-1"
             >
-              <span className={`font-mono text-[11px] mt-0.5 ${colorTextClass}`}>
-                {idx + 1}.
-              </span>
-              <span className="flex-1 leading-relaxed">
-                {renderTextWithWikiLinks(
-                  item,
-                  wikiDb,
-                  wikiHandlers
-                )}
-              </span>
+              <div
+                role={onItemClick ? 'button' : undefined}
+                tabIndex={onItemClick ? 0 : undefined}
+                title={onItemClick ? 'In die Zusammenfassung dieser Seite übernehmen' : undefined}
+                aria-label={onItemClick ? `${item} in die Zusammenfassung dieser Seite übernehmen` : undefined}
+                onClick={(event) => {
+                  if (!onItemClick) return;
+                  if (event.target instanceof Element && event.target.closest('a')) return;
+                  onItemClick(item);
+                }}
+                onKeyDown={(event) => {
+                  if (
+                    onItemClick &&
+                    event.target === event.currentTarget &&
+                    (event.key === 'Enter' || event.key === ' ')
+                  ) {
+                    event.preventDefault();
+                    onItemClick(item);
+                  }
+                }}
+                className={`flex min-w-0 flex-1 items-start justify-between gap-2 p-2 bg-slate-900/80 border border-slate-800/80 rounded-lg text-xs text-slate-200 ${
+                  onItemClick ? 'cursor-pointer hover:border-teal-500/60 hover:bg-teal-950/20' : ''
+                }`}
+              >
+                <span className={`font-mono text-[11px] mt-0.5 ${colorTextClass}`}>
+                  {idx + 1}.
+                </span>
+                <span className="flex-1 leading-relaxed">
+                  {renderTextWithWikiLinks(
+                    item,
+                    wikiDb,
+                    wikiHandlers
+                  )}
+                </span>
+                {onItemClick && <Plus className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-400" />}
+              </div>
               {isEditing && (
                 <button
                   type="button"
                   onClick={() => handleRemoveListItem(field, idx)}
-                  className="text-slate-500 hover:text-red-400 text-xs px-1"
+                  className="self-start px-1 text-xs text-slate-500 hover:text-red-400"
                 >
                   ✕
                 </button>
@@ -1010,6 +1022,7 @@ export const NotesEditor: React.FC<NotesEditorProps> = ({
                 module={getModule((isEditing ? currentNote.moduleId : activeNote.moduleId) || '')}
                 course={events.find((event) => event.id === (isEditing ? currentNote.courseId : activeNote.courseId))}
                 editing={isEditing}
+                summaryTransferHandlerRef={summaryTransferHandlerRef}
                 onChange={(patch) => {
                   if (isEditing) {
                     setCurrentNote((previous) => ({ ...previous, ...patch }));
@@ -1288,7 +1301,8 @@ export const NotesEditor: React.FC<NotesEditorProps> = ({
                     connectionInput,
                     setConnectionInput,
                     'Neuen Zusammenhang hinzufügen...',
-                    'Keine Zusammenhänge erfasst'
+                    'Keine Zusammenhänge erfasst',
+                    (item) => queueSummaryTransfer('connections', item),
                   )}
 
                   {/* Offene Fragen */}
@@ -1312,7 +1326,8 @@ export const NotesEditor: React.FC<NotesEditorProps> = ({
                     insightInput,
                     setInsightInput,
                     'Neue Erkenntnis hinzufügen...',
-                    'Keine Erkenntnisse erfasst'
+                    'Keine Erkenntnisse erfasst',
+                    (item) => queueSummaryTransfer('insights', item),
                   )}
 
                   {/* Prüfungsrelevante Hinweise */}
@@ -1425,47 +1440,6 @@ export const NotesEditor: React.FC<NotesEditorProps> = ({
                   )}
                 </div>
 
-                {/* Panel 3: Nachbereitung in NotionLM */}
-                <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden transition-all">
-                  <button
-                    type="button"
-                    onClick={() => setOpenChecklistNotionLM(!openChecklistNotionLM)}
-                    className="w-full p-3 flex items-center justify-between text-xs font-bold text-slate-200 hover:bg-slate-900 transition-colors"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-purple-400" />
-                      <span>Nachbereitung in NotionLM</span>
-                    </div>
-                    {openChecklistNotionLM ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-                  </button>
-
-                  {openChecklistNotionLM && (
-                    <div className="p-3 border-t border-slate-800/80 bg-slate-900/60 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-xs">
-                      {[
-                        { key: 'summaryGenerated', label: 'Übersicht generiert' },
-                        { key: 'quizGenerated', label: 'Quizfragen generiert' },
-                        { key: 'ankiGenerated', label: 'Anki-Kandidaten erzeugt' },
-                      ].map((item) => {
-                        const isChecked = !!(currentNote.checklistNotionLM && currentNote.checklistNotionLM[item.key as keyof NoteChecklistNotionLM]);
-                        return (
-                          <button
-                            type="button"
-                            key={item.key}
-                            onClick={() => handleToggleNotionLMCheck(item.key as any)}
-                            className={`p-2 rounded-lg text-left flex items-center gap-2 border transition-all ${
-                              isChecked
-                                ? 'bg-purple-950/30 border-purple-500/40 text-purple-200 font-semibold'
-                                : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
-                            }`}
-                          >
-                            {isChecked ? <CheckSquare className="w-4 h-4 text-purple-400 shrink-0" /> : <Square className="w-4 h-4 text-slate-600 shrink-0" />}
-                            <span>{item.label}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
               </div>
 
               {/* VERKNÜPFTE LERNTHEMEN (AUS VORHANDENEN WÄHLEN / NUR BEI BEDARF NEU) */}
@@ -2262,8 +2236,12 @@ export const NotesEditor: React.FC<NotesEditorProps> = ({
                     <span className="text-slate-400 text-[11px] font-sans ml-2">→ ++Wichtig++</span>
                   </div>
                   <div>
-                    <span className="text-teal-400">*Kursiver Text*</span>
-                    <span className="text-slate-400 text-[11px] font-sans ml-2">→ *Lateinische Fachbegriffe*</span>
+                    <span className="text-teal-400">//Kursiver Text//</span>
+                    <span className="text-slate-400 text-[11px] font-sans ml-2">→ //Lateinische Fachbegriffe//</span>
+                  </div>
+                  <div>
+                    <span className="text-teal-400">__Unterstrichener Text__</span>
+                    <span className="text-slate-400 text-[11px] font-sans ml-2">→ __Wichtiger Begriff__</span>
                   </div>
                   <div>
                     <span className="text-teal-400">~~Durchgestrichen~~</span>
@@ -2277,11 +2255,11 @@ export const NotesEditor: React.FC<NotesEditorProps> = ({
 
                 <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-2 font-mono">
                   <div>
-                    <span className="text-teal-400">- Stichpunkt</span>
+                    <span className="text-teal-400">/- Stichpunkt</span>
                     <p className="text-slate-400 text-[11px] font-sans">Aufzählungsliste mit Teal-Bullet</p>
                   </div>
                   <div>
-                    <span className="text-teal-400">1. Erster Punkt</span>
+                    <span className="text-teal-400">/1 Erster Punkt</span>
                     <p className="text-slate-400 text-[11px] font-sans">Nummerierte Ablaufliste</p>
                   </div>
                   <div>

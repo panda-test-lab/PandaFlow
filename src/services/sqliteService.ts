@@ -421,14 +421,7 @@ export async function createSqliteBinaryFromAppDatabase(data: AppDatabase): Prom
         JSON.stringify(n.keyTakeaways || []),
         JSON.stringify(n.linkedTopicIds || []),
         JSON.stringify(n.linkedMaterialIds || []),
-        JSON.stringify({
-          checklistShortTerm: n.checklistShortTerm,
-          checklistExamPrep: n.checklistExamPrep,
-          checklistNotionLM: n.checklistNotionLM,
-          openQuestions: n.openQuestions,
-          insights: n.insights,
-          examHints: n.examHints,
-        }),
+        serializeNoteMetadata(n),
       ]);
     });
     stmt.free();
@@ -693,7 +686,7 @@ export async function parseSqliteBinaryToAppDatabase(sqliteBytes: Uint8Array): P
   // Notes
   const noteRows = queryTable('SELECT * FROM notes');
   const notes: LectureNote[] = noteRows.map((r) => {
-    const extra = safeJsonParse(r.checklistJson, {});
+    const extra = parseNoteMetadata(r.checklistJson);
     return {
       id: r.id,
       moduleId: r.moduleId,
@@ -711,9 +704,18 @@ export async function parseSqliteBinaryToAppDatabase(sqliteBytes: Uint8Array): P
       checklistShortTerm: extra.checklistShortTerm,
       checklistExamPrep: extra.checklistExamPrep,
       checklistNotionLM: extra.checklistNotionLM,
+      connections: extra.connections,
+      connectionsList: extra.connectionsList,
       openQuestions: extra.openQuestions,
+      openQuestionsList: extra.openQuestionsList,
       insights: extra.insights,
+      insightsList: extra.insightsList,
       examHints: extra.examHints,
+      examHintsList: extra.examHintsList,
+      cornellPages: extra.cornellPages,
+      cornellReferences: extra.cornellReferences,
+      cornellImages: extra.cornellImages,
+      cornellMarkerColors: extra.cornellMarkerColors,
     };
   });
 
@@ -862,6 +864,30 @@ function safeJsonParse(str: string | null | undefined, fallback: any) {
   } catch {
     return fallback;
   }
+}
+
+export function serializeNoteMetadata(note: LectureNote): string {
+  return JSON.stringify({
+    checklistShortTerm: note.checklistShortTerm,
+    checklistExamPrep: note.checklistExamPrep,
+    checklistNotionLM: note.checklistNotionLM,
+    connections: note.connections,
+    connectionsList: note.connectionsList,
+    openQuestions: note.openQuestions,
+    openQuestionsList: note.openQuestionsList,
+    insights: note.insights,
+    insightsList: note.insightsList,
+    examHints: note.examHints,
+    examHintsList: note.examHintsList,
+    cornellPages: note.cornellPages,
+    cornellReferences: note.cornellReferences,
+    cornellImages: note.cornellImages,
+    cornellMarkerColors: note.cornellMarkerColors,
+  });
+}
+
+export function parseNoteMetadata(value: string | null | undefined): Partial<LectureNote> {
+  return safeJsonParse(value, {});
 }
 
 // Generate human-readable SQL DDL and INSERT dump

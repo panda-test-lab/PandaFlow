@@ -132,6 +132,54 @@ export function toSubscript(str: string): string {
     .join('');
 }
 
+function unwrapLatexCommand(input: string, command: string): string {
+  const marker = `\\${command}{`;
+  let result = input;
+  let start = result.indexOf(marker);
+
+  while (start !== -1) {
+    const contentStart = start + marker.length;
+    let depth = 1;
+    let end = contentStart;
+    while (end < result.length && depth > 0) {
+      if (result[end] === '{') depth++;
+      else if (result[end] === '}') depth--;
+      end++;
+    }
+    if (depth !== 0) break;
+    result = result.slice(0, start) + result.slice(contentStart, end - 1) + result.slice(end);
+    start = result.indexOf(marker, start);
+  }
+
+  return result;
+}
+
+function latexSpace(length: string): string {
+  const match = /^\s*(-?\d*\.?\d+)\s*(em|ex|mu|pt|mm|cm|in|px)?\s*$/i.exec(length);
+  if (!match) return ' ';
+  const value = Math.max(0, Number(match[1]));
+  const unit = (match[2] || 'em').toLowerCase();
+  const ems = value * ({
+    em: 1,
+    ex: 0.5,
+    mu: 1 / 18,
+    pt: 1 / 12,
+    mm: 1 / 4.2,
+    cm: 1 / 0.42,
+    in: 6,
+    px: 1 / 16,
+  }[unit] || 1);
+  let remaining = Math.min(ems, 40);
+  let spaces = '';
+  for (const [width, character] of [[1, '\u2003'], [0.5, '\u2002'], [0.2, '\u2009'], [0.1, '\u200a']] as const) {
+    while (remaining >= width) {
+      spaces += character;
+      remaining -= width;
+    }
+  }
+  return spaces;
+}
+
 /**
  * Converts LaTeX/AsciiMath/Chemical formula code into clear, human-readable Unicode text.
  * E.g.: "HA \\rightarrow H^+ + A^-" -> "HA → H⁺ + A⁻"
@@ -141,23 +189,39 @@ export function toSubscript(str: string): string {
 export function formatFormulaToReadableText(rawFormula: string): string {
   if (!rawFormula) return '';
 
-  let formula = rawFormula.trim();
+  let formula = rawFormula;
+  let chemistry = false;
 
   // Strip wrapping delimiters if present ($...$, ($...$), $$...$$, \(...\), \[...\])
   if (formula.startsWith('($') && formula.endsWith('$)')) {
-    formula = formula.slice(2, -2).trim();
+    formula = formula.slice(2, -2);
   } else if (formula.startsWith('$$') && formula.endsWith('$$')) {
-    formula = formula.slice(2, -2).trim();
+    formula = formula.slice(2, -2);
   } else if (formula.startsWith('$') && formula.endsWith('$')) {
-    formula = formula.slice(1, -1).trim();
+    formula = formula.slice(1, -1);
   } else if (formula.startsWith('\\(') && formula.endsWith('\\)')) {
-    formula = formula.slice(2, -2).trim();
+    formula = formula.slice(2, -2);
   } else if (formula.startsWith('\\[') && formula.endsWith('\\]')) {
-    formula = formula.slice(2, -2).trim();
+    formula = formula.slice(2, -2);
   }
 
-  // 1. Remove LaTeX text wrappers: \text{...}, \mathrm{...}, \mathbf{...}
-  formula = formula.replace(/\\(text|mathrm|mathbf|mathit)\{([^}]+)\}/g, '$2');
+  // Chemistry macros keep their contents while using chemical subscript conventions.
+  chemistry = /\\(?:ce|ch)\{/.test(formula);
+  for (const command of ['ce', 'ch', 'text', 'mathrm', 'mathbf', 'mathit', 'operatorname']) {
+    formula = unwrapLatexCommand(formula, command);
+  }
+  if (chemistry) {
+    formula = formula.replace(/([A-Za-z)])(\d+)(?=\s*(?:[A-Za-z(\\^+−-]|$))/g, (_match, atom, count) => `${atom}${toSubscript(count)}`);
+  }
+
+  formula = formula.replace(/\\hspace\*?\s*\{([^}]+)\}/g, (_match, length) => latexSpace(length));
+  formula = formula.replace(/\\hspace\*?\b/g, ' ');
+  formula = formula.replace(/\\qquad\b/g, '\u2003\u2003');
+  formula = formula.replace(/\\quad\b/g, '\u2003');
+  formula = formula.replace(/\\hline\b/g, '\n────────\n');
+  formula = formula.replace(/\\\\(?:\s*\[[^\]]+\])?/g, '\n');
+  formula = formula.replace(/\\(?:begin|end)\{(?:array|matrix|pmatrix|bmatrix|vmatrix|Vmatrix|cases)\}(?:\{[^}]*\})?/g, '');
+  formula = formula.replace(/\s*&\s*/g, '  ');
 
   // 2. Square roots: \sqrt{...} -> √( ... )
   formula = formula.replace(/\\sqrt\[([^\]]+)\]\{([^}]+)\}/g, '$1√($2)');
@@ -200,9 +264,8 @@ export function formatFormulaToReadableText(rawFormula: string): string {
     return '';
   });
 
-  // Clean double spaces or rogue backslashes
+  // Remove remaining escape slashes without collapsing meaningful whitespace.
   formula = formula.replace(/\\/g, '');
-  formula = formula.replace(/\s+/g, ' ').trim();
 
   return formula;
 }
@@ -240,6 +303,87 @@ export function convertAllFormulaCodesToReadableText(fullText: string): string {
   });
 
   return result;
+}
+
+const RAW_LATEX_COMMANDS = new Set([
+  ...SYMBOL_REPLACEMENTS.flatMap(([pattern]) =>
+    Array.from(pattern.source.matchAll(/\\\\([A-Za-z]+)/g), (match) => match[1])
+  ),
+  'ce', 'ch', 'hspace', 'quad', 'qquad', 'hline',
+  'frac', 'sqrt', 'text', 'mathrm', 'mathbf', 'mathit', 'operatorname',
+  'begin', 'end',
+]);
+
+const LATEX_COMMAND_ARGUMENTS: Record<string, number> = {
+  ce: 1,
+  ch: 1,
+  hspace: 1,
+  frac: 2,
+  sqrt: 1,
+  text: 1,
+  mathrm: 1,
+  mathbf: 1,
+  mathit: 1,
+  operatorname: 1,
+  begin: 1,
+  end: 1,
+};
+
+const BARE_MATH_SCRIPT_PATTERN =
+  /(?<![A-Za-z0-9])([A-Za-z]{1,2})(\^\{[^{}]+\}|\^[A-Za-z0-9+\-]|_\{[^{}]+\}|_[A-Za-z0-9])/g;
+
+function findLatexGroupEnd(text: string, start: number, open: string, close: string): number | undefined {
+  if (text[start] !== open) return undefined;
+  let depth = 0;
+  for (let index = start; index < text.length; index++) {
+    if (text[index] === '\\') {
+      index++;
+      continue;
+    }
+    if (text[index] === open) depth++;
+    else if (text[index] === close && --depth === 0) return index + 1;
+  }
+  return undefined;
+}
+
+/**
+ * Converts supported LaTeX commands even when users enter them without math delimiters.
+ */
+export function convertRawLatexCommandsToReadableText(text: string): string {
+  const commandPattern = /\\([A-Za-z]+)(\*)?/g;
+  let result = '';
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = commandPattern.exec(text)) !== null) {
+    const command = match[1];
+    if (!RAW_LATEX_COMMANDS.has(command)) continue;
+
+    let end = commandPattern.lastIndex;
+    const argumentCount = LATEX_COMMAND_ARGUMENTS[command] || 0;
+    let valid = true;
+
+    if (command === 'sqrt' && text[end] === '[') {
+      const optionalEnd = findLatexGroupEnd(text, end, '[', ']');
+      if (!optionalEnd) valid = false;
+      else end = optionalEnd;
+    }
+
+    for (let argument = 0; valid && argument < argumentCount; argument++) {
+      const groupEnd = findLatexGroupEnd(text, end, '{', '}');
+      if (!groupEnd) valid = false;
+      else end = groupEnd;
+    }
+    if (!valid) continue;
+
+    result += text.slice(lastIndex, match.index);
+    result += formatFormulaToReadableText(text.slice(match.index, end));
+    lastIndex = end;
+    commandPattern.lastIndex = end;
+  }
+
+  const converted = lastIndex ? result + text.slice(lastIndex) : text;
+  return converted.replace(BARE_MATH_SCRIPT_PATTERN, (formula) => formatFormulaToReadableText(formula));
 }
 
 /**
@@ -297,7 +441,7 @@ export function renderFormulasInText(
 
   // Clean residual latex codes in plain text chunks
   const cleanPlainText = (txt: string) => {
-    return txt
+    return convertRawLatexCommandsToReadableText(txt)
       .replace(/\\rightarrow|-->/g, '→')
       .replace(/\\rightleftharpoons|<=>/g, '⇄')
       .replace(/\\downarrow/g, '↓')
@@ -370,9 +514,14 @@ export interface FormulaCheatSheetSection {
 export const FORMULA_GUIDE_DATA: FormulaCheatSheetSection[] = [
   {
     category: 'general',
-    title: 'Allgemeine Formatierung & Delimiter',
-    description: 'Wie du Formel-Codes in deine Mitschriften einbettest:',
+    title: 'Formeln direkt und mit Delimitern',
+    description: 'LaTeX-Kommandos und einfache Hoch-/Tiefstellungen werden direkt umgesetzt. Komplexe Formeln kannst du mit Delimitern markieren:',
     items: [
+      {
+        code: '\\alpha; x^2; H_2O; \\ce{CO2}',
+        rendered: 'α; x²; H₂O; CO₂',
+        description: 'Einfache LaTeX-Kommandos und Hoch-/Tiefstellungen können direkt im Text stehen.',
+      },
       {
         code: '($HA \\rightarrow H^+ + A^-$)',
         rendered: '(HA → H⁺ + A⁻)',

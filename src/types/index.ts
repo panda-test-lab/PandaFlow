@@ -97,12 +97,15 @@ export interface CornellPage {
   id: string;
   content: string;
   summary?: string;
+  summaryConnections?: string[];
+  summaryInsights?: string[];
 }
 
 export interface CornellReference {
   id: string;
   type: 'P' | 'S';
   number: number;
+  title?: string;
   text: string;
   line: number;
   pageId?: string;

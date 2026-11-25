@@ -1,23 +1,19 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# PandaFlow
 
-# Run and deploy your AI Studio app
+PandaFlow is an offline-capable study planner and note-taking app built with React, Vite, and Tauri.
 
-This contains everything you need to run your app locally.
+## Local development
 
-View your app in AI Studio: https://ai.studio/apps/1983f341-313b-49b7-b999-b621ecf8bfc0
+**Prerequisites:** Node.js and npm
 
-## Run Locally
+1. Install dependencies with `npm ci`.
+2. Start the development server with `npm run dev`.
 
-**Prerequisites:**  Node.js
+## Checks
 
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+- `npm run lint` — TypeScript check
+- `npm test` — test suite
+- `npm run build` — production frontend build
 
 ## Tauri desktop and mobile releases
 

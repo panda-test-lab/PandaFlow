@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Module, LearningTopic, LectureNote, Exam } from '../types';
 import { WikiLinkBadge, WikiLinkDatabase, WikiLinkNavigationHandlers, resolveWikiLink } from './wikiLinks';
-import { FormattedFormulaView } from './formulaFormatter';
+import { convertRawLatexCommandsToReadableText, FormattedFormulaView } from './formulaFormatter';
 import { Copy, Check, ExternalLink, CheckSquare, Square } from 'lucide-react';
 
 interface MarkdownProps {
@@ -15,7 +15,7 @@ interface MarkdownProps {
  * Replaces arrows and basic chemistry/physics shorthand symbols in plain text.
  */
 function cleanPlainTextSymbols(text: string): string {
-  return text
+  return convertRawLatexCommandsToReadableText(text)
     .replace(/\\rightarrow|-->/g, '→')
     .replace(/\\leftarrow|<--/g, '←')
     .replace(/\\rightleftharpoons|<=>/g, '⇄')
@@ -39,10 +39,11 @@ function cleanPlainTextSymbols(text: string): string {
  * 4. Inline formulas: $...$ or \(...\)
  * 5. Code: `code`
  * 6. Bold+Italic: ***text***
- * 7. Bold: ++text++, **text** or __text__
- * 8. Strikethrough: ~~text~~
- * 9. Markdown links: [text](url)
- * 10. Italic: *text* or _text_
+ * 7. Bold: ++text++ or **text**
+ * 8. Underline: __text__
+ * 9. Strikethrough: ~~text~~
+ * 10. Markdown links: [text](url)
+ * 11. Italic: //text//, *text* or _text_
  */
 /**
  * Regular expression pattern for all inline tokens.
@@ -53,11 +54,12 @@ function cleanPlainTextSymbols(text: string): string {
  * 4. Inline formulas: $...$ or \(...\)
  * 5. Code: `code`
  * 6. Bold+Italic: ***text***
- * 7. Bold: ++text++, **text** or __text__
- * 8. Strikethrough: ~~text~~
- * 9. Markdown links: [text](url)
+ * 7. Bold: ++text++ or **text**
+ * 8. Underline: __text__
+ * 9. Strikethrough: ~~text~~
+ * 10. Markdown links: [text](url)
  * 10. Single bracket WikiLinks: [Target] or [Target|Alias] (when not a markdown link)
- * 11. Italic: *text* or _text_
+ * 12. Italic: //text//, *text* or _text_
  */
 const INLINE_REGEX_SOURCE =
   '(?:\\[\\[\\[([^\\]|]+)(?:\\|([^\\]]+))?\\]\\]\\])|' + // 1, 2: [[[target|alias]]]
@@ -73,7 +75,11 @@ const INLINE_REGEX_SOURCE =
   '(?:~~([^~]+)~~)|' + // 14: ~~del~~
   '(?:\\[([^\\]]+)\\]\\(([^)\\s]+)\\))|' + // 15, 16: [text](url)
   '(?:\\*([^*]+)\\*)|(?:(?<!\\w)_([^_]+)_(?!\\w))|' + // 17, 18: *i* or _i_
-  '(?:\\+\\+([^+]+)\\+\\+)'; // 19: ++b++
+  '(?:\\+\\+([^+]+)\\+\\+)|' + // 19: ++b++
+  '(?:<u>(.+?)</u>)|' + // 20: underlined
+  '(?:<mark(?: data-color="(#[0-9a-fA-F]{6})")?>(.+?)</mark>)|' + // 21, 22: highlighted
+  '(?:<span style="color:\\s*(#[0-9a-fA-F]{6})">(.+?)</span>)|' + // 23, 24: colored
+  '(?:\\/\\/([^/\\n]+)\\/\\/)'; // 25: //italic//
 
 /**
  * Parses and renders inline markdown tokens, WikiLinks, and formulas recursively.
@@ -144,10 +150,10 @@ export function renderInlineMarkdown(
     else if (match[5] !== undefined) {
       const inner = match[5];
       elements.push(
-        <span key={itemKey} className="inline-flex items-center">
-          <span className="text-slate-400 font-sans">(</span>
-          <FormattedFormulaView raw={inner} isBlock={false} />
-          <span className="text-slate-400 font-sans">)</span>
+        <span key={itemKey} className="markdown-formula-delimiters">
+          <span className="markdown-formula-delimiter">(</span>
+          <FormattedFormulaView raw={inner} isBlock={false} className="markdown-inline-formula" />
+          <span className="markdown-formula-delimiter">)</span>
         </span>
       );
     }
@@ -155,14 +161,14 @@ export function renderInlineMarkdown(
     else if (match[6] !== undefined || match[9] !== undefined) {
       const inner = match[6] ?? match[9];
       elements.push(
-        <FormattedFormulaView key={itemKey} raw={inner} isBlock={true} />
+        <FormattedFormulaView key={itemKey} raw={inner} isBlock={true} className="markdown-block-formula" />
       );
     }
     // 5. Inline formula: $...$ or \(...\)
     else if (match[7] !== undefined || match[8] !== undefined) {
       const inner = match[7] ?? match[8];
       elements.push(
-        <FormattedFormulaView key={itemKey} raw={inner} isBlock={false} />
+        <FormattedFormulaView key={itemKey} raw={inner} isBlock={false} className="markdown-inline-formula" />
       );
     }
     // 6. Inline code: `code`
@@ -185,15 +191,20 @@ export function renderInlineMarkdown(
         </strong>
       );
     }
-    // 8. Bold: **text** or __text__
-    else if (match[12] !== undefined || match[13] !== undefined) {
-      const innerText = match[12] ?? match[13];
+    // 8. Bold: **text**
+    else if (match[12] !== undefined) {
+      const innerText = match[12];
       const inner = depth < 3 ? renderInlineMarkdown(innerText, db, handlers, `${itemKey}-b`, depth + 1) : innerText;
       elements.push(
         <strong key={itemKey} className="font-bold text-slate-100">
           {inner}
         </strong>
       );
+    }
+    // 8b. Underline: __text__
+    else if (match[13] !== undefined) {
+      const inner = depth < 3 ? renderInlineMarkdown(match[13], db, handlers, `${itemKey}-u`, depth + 1) : match[13];
+      elements.push(<u key={itemKey}>{inner}</u>);
     }
     // 9. Strikethrough: ~~text~~
     else if (match[14] !== undefined) {
@@ -269,6 +280,31 @@ export function renderInlineMarkdown(
           {inner}
         </strong>
       );
+    }
+    // 13. Underline: <u>text</u>
+    else if (match[20] !== undefined) {
+      const inner = depth < 3 ? renderInlineMarkdown(match[20], db, handlers, `${itemKey}-u`, depth + 1) : match[20];
+      elements.push(<u key={itemKey}>{inner}</u>);
+    }
+    // 14. Highlight: <mark>text</mark>
+    else if (match[21] !== undefined || match[22] !== undefined) {
+      const color = match[21] || '#fde047';
+      const inner = depth < 3 ? renderInlineMarkdown(match[22], db, handlers, `${itemKey}-mark`, depth + 1) : match[22];
+      elements.push(
+        <mark key={itemKey} style={{ backgroundColor: color, color: '#0f172a' }} className="rounded px-0.5">
+          {inner}
+        </mark>
+      );
+    }
+    // 15. Text color: validated hex values only
+    else if (match[23] !== undefined) {
+      const inner = depth < 3 ? renderInlineMarkdown(match[24], db, handlers, `${itemKey}-color`, depth + 1) : match[24];
+      elements.push(<span key={itemKey} style={{ color: match[23] }}>{inner}</span>);
+    }
+    // 16. Alternative italic syntax: //text//
+    else if (match[25] !== undefined) {
+      const inner = depth < 3 ? renderInlineMarkdown(match[25], db, handlers, `${itemKey}-i`, depth + 1) : match[25];
+      elements.push(<em key={itemKey} className="italic text-slate-200">{inner}</em>);
     }
 
     lastIndex = start + matchedStr.length;
@@ -347,7 +383,8 @@ type BlockNode =
   | {
       type: 'list';
       ordered: boolean;
-      items: { indent: number; text: string; task?: { checked: boolean } }[];
+      start?: number;
+      items: { indent: number; text: string; task?: { checked: boolean }; number?: number }[];
     }
   | {
       type: 'table';
@@ -487,7 +524,27 @@ function parseMarkdownBlocks(rawText: string): BlockNode[] {
       continue;
     }
 
-    // 7. Lists (unordered, ordered, task list)
+    // 7. Cornell editor lists: /- item, /1 item, /2 item, ...
+    const markedListMatch = line.match(/^(\s*)\/(-|\d+)\s+(.*)$/);
+    if (markedListMatch) {
+      const ordered = markedListMatch[2] !== '-';
+      const items: { indent: number; text: string; number?: number }[] = [];
+      const start = ordered ? Number(markedListMatch[2]) : undefined;
+      while (i < lines.length) {
+        const current = lines[i].match(/^(\s*)\/(-|\d+)\s+(.*)$/);
+        if (!current || (current[2] !== '-') !== ordered) break;
+        items.push({
+          indent: Math.floor(current[1].length / 2),
+          text: current[3],
+          number: ordered ? Number(current[2]) : undefined,
+        });
+        i++;
+      }
+      blocks.push({ type: 'list', ordered, start, items });
+      continue;
+    }
+
+    // 8. Lists (unordered, ordered, task list)
     const listMatch = line.match(/^(\s*)([-*+]|\d+\.)\s+(.*)$/);
     if (listMatch) {
       const isOrdered = /^\d+\./.test(listMatch[2]);
@@ -721,7 +778,7 @@ export const MarkdownRenderer: React.FC<MarkdownProps> = ({
                         className={`flex items-start gap-2 ${indentClass}`}
                       >
                         <span className="font-mono font-bold text-teal-400 shrink-0 select-none text-[11px] min-w-4">
-                          {iIdx + 1}.
+                          {item.number ?? (block.start ?? 1) + iIdx}.
                         </span>
                         <div className="flex-1">{inline}</div>
                       </li>
@@ -815,5 +872,5 @@ export const MarkdownRenderer: React.FC<MarkdownProps> = ({
 export function isMarkdownBlockText(text: string): boolean {
   if (!text) return false;
   if (text.includes('\n')) return true;
-  return /^(?:#{1,6}\s|[-*+]\s|\d+\.\s|>\s|```|\||\$\$|\\\[|---|\*\*\*|___)/m.test(text);
+  return /^(?:#{1,6}\s|[-*+]\s|\d+\.\s|\/(?:-|\d+)\s|>\s|```|\||\$\$|\\\[|---|\*\*\*|___)/m.test(text);
 }

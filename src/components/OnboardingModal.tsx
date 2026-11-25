@@ -16,7 +16,7 @@ import {
   X, 
   ExternalLink 
 } from 'lucide-react';
-import { KofiWidget } from './KofiWidget';
+import { KofiWidget, openKofiInDefaultBrowser } from './KofiWidget';
 
 interface OnboardingModalProps {
   initialName?: string;
@@ -401,6 +401,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                   href="https://ko-fi.com/H0G826CZMP"
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={(event) => openKofiInDefaultBrowser(event, 'H0G826CZMP')}
                   className="text-xs text-slate-400 hover:text-amber-400 transition-colors flex items-center gap-1 font-mono"
                 >
                   <span>ko-fi.com/H0G826CZMP</span>

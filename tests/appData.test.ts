@@ -45,9 +45,12 @@ import {
   encryptSqliteData,
   isEncryptedSqlite,
   isRawSqlite,
+  parseNoteMetadata,
+  serializeNoteMetadata,
 } from '../src/services/sqliteService';
 import { getExamRegistrationDeadlines } from '../src/utils/examDeadlines';
 import { isMarkdownBlockText, MarkdownRenderer, renderInlineMarkdown } from '../src/utils/markdownRenderer';
+import { formatFormulaToReadableText } from '../src/utils/formulaFormatter';
 import { isEventScheduledOnDate } from '../src/utils/schedule';
 import {
   AnkiCard,
@@ -249,6 +252,71 @@ describe('Datenbank-Persistenz', () => {
         const [headingText] = renderInlineMarkdown('## Überschrift 2');
         assert.ok(isValidElement(headingText));
         assert.notEqual(headingText.type, 'strong');
+      });
+
+      it('renders underline, highlight, and text color markup', () => {
+        const [underlined] = renderInlineMarkdown('__Underlined__');
+        assert.ok(isValidElement(underlined));
+        assert.equal(underlined.type, 'u');
+        const [italic] = renderInlineMarkdown('//Italic//');
+        assert.ok(isValidElement(italic));
+        assert.equal(italic.type, 'em');
+
+        const markup = renderToStaticMarkup(createElement(MarkdownRenderer, {
+          content: '<mark data-color="#fde047">Highlighted</mark> and <span style="color:#2563eb">colored</span>',
+        }));
+        assert.match(markup, /<mark/);
+        assert.match(markup, /#fde047/);
+        assert.match(markup, /color:#2563eb/);
+      });
+
+      it('renders the Cornell unordered and numbered list markers', () => {
+        const markup = renderToStaticMarkup(createElement(MarkdownRenderer, {
+          content: '/- First\n/- Second\n/3 Third\n/4 Fourth',
+        }));
+        assert.match(markup, /First/);
+        assert.match(markup, /Second/);
+        assert.match(markup, />3\.</);
+        assert.match(markup, />4\.</);
+        assert.equal(isMarkdownBlockText('/- First'), true);
+      });
+
+      it('renders the three heading levels available in Cornell notes', () => {
+        const markup = renderToStaticMarkup(createElement(MarkdownRenderer, {
+          content: '# First\n## Second\n### Third',
+        }));
+        assert.match(markup, /<h1/);
+        assert.match(markup, /<h2/);
+        assert.match(markup, /<h3/);
+      });
+
+      it('formats math, chemistry, Greek symbols, and LaTeX spacing without collapsing whitespace', () => {
+        assert.equal(formatFormulaToReadableText('\\alpha + \\Omega'), 'α + Ω');
+        assert.equal(formatFormulaToReadableText('\\ce{H2O + CO2 -> H2CO3}'), 'H₂O + CO₂ → H₂CO₃');
+        assert.equal(formatFormulaToReadableText('A\\hspace{1em}B'), 'A\u2003B');
+        assert.equal(formatFormulaToReadableText('A\\hline B'), 'A\n────────\n B');
+        assert.equal(formatFormulaToReadableText('x  +  y'), 'x  +  y');
+      });
+
+      it('renders bare LaTeX commands directly in note text', () => {
+        const markup = renderToStaticMarkup(createElement(MarkdownRenderer, {
+          content: 'Winkel: \\alpha + \\Omega; Stoff: \\ce{H2O + CO2}; Wasser: H_2O; Potenz: x^2; Bruch: \\frac{a+b}{c}; Abstand: A\\hspace{1em}B; Linie: \\hline',
+        }));
+
+        assert.match(markup, /α \+ Ω/);
+        assert.match(markup, /H₂O \+ CO₂/);
+        assert.match(markup, /Wasser: H₂O/);
+        assert.match(markup, /x²/);
+        assert.match(markup, /\(a\+b\) \/ c/);
+        assert.match(markup, /A B/);
+        assert.match(markup, /────────/);
+        assert.doesNotMatch(markup, /\\(?:alpha|Omega|ce|hspace|hline)/);
+      });
+
+      it('renders inline formulas with the Cornell text style hook', () => {
+        const [, formula] = renderInlineMarkdown('Before $x + y$ after');
+        assert.ok(isValidElement(formula));
+        assert.equal((formula.props as { className?: string }).className, 'markdown-inline-formula');
       });
 
       it('verarbeitet unvollständige Überschriften-Zeilen ohne den Renderer aufzuhalten', () => {
@@ -666,6 +734,69 @@ describe('JSON-Backup-Import', () => {
 });
 
 describe('Verschlüsselte SQLite-Backups', () => {
+  it('erhält strukturierte Einträge und Cornell-Seiten in den SQLite-Zusatzdaten', () => {
+    const note: LectureNote = {
+      id: 'note-cornell-roundtrip',
+      moduleId: 'module-test',
+      title: 'Cornell-Test',
+      content: 'Notiztext',
+      summary: 'Kurzzusammenfassung',
+      tags: [],
+      lectureDate: '2026-11-25',
+      updatedAt: '2026-11-25T12:00:00.000Z',
+      keyTakeaways: [],
+      connections: 'Zusammenhang alt',
+      connectionsList: ['Zusammenhang A'],
+      openQuestions: 'Offene Frage alt',
+      openQuestionsList: ['Offene Frage A'],
+      insights: 'Erkenntnis alt',
+      insightsList: ['Erkenntnis A'],
+      examHints: 'Prüfungshinweis alt',
+      examHintsList: ['Prüfungshinweis A'],
+      linkedTopicIds: [],
+      linkedMaterialIds: [],
+      checklistShortTerm: {},
+      checklistExamPrep: {},
+      checklistNotionLM: {},
+      cornellPages: [{
+        id: 'cornell-page-1',
+        content: 'Seiteninhalt',
+        summary: 'Seitenzusammenfassung',
+        summaryConnections: ['Übernommener Zusammenhang'],
+        summaryInsights: ['Übernommene Erkenntnis'],
+      }],
+      cornellReferences: [],
+      cornellImages: [],
+      cornellMarkerColors: { enabled: true, questions: '#f59e0b', keywords: '#22d3ee' },
+    };
+    assert.deepEqual(
+      parseNoteMetadata(serializeNoteMetadata(note)),
+      {
+        checklistShortTerm: {},
+        checklistExamPrep: {},
+        checklistNotionLM: {},
+        connections: 'Zusammenhang alt',
+        connectionsList: ['Zusammenhang A'],
+        openQuestions: 'Offene Frage alt',
+        openQuestionsList: ['Offene Frage A'],
+        insights: 'Erkenntnis alt',
+        insightsList: ['Erkenntnis A'],
+        examHints: 'Prüfungshinweis alt',
+        examHintsList: ['Prüfungshinweis A'],
+        cornellPages: [{
+          id: 'cornell-page-1',
+          content: 'Seiteninhalt',
+          summary: 'Seitenzusammenfassung',
+          summaryConnections: ['Übernommener Zusammenhang'],
+          summaryInsights: ['Übernommene Erkenntnis'],
+        }],
+        cornellReferences: [],
+        cornellImages: [],
+        cornellMarkerColors: { enabled: true, questions: '#f59e0b', keywords: '#22d3ee' },
+      }
+    );
+  });
+
   it('verwendet die zum sql.js-Paket passende WASM-Binärdatei', async () => {
     const publicWasm = await readFile(new URL('../public/sql-wasm.wasm', import.meta.url));
     const packageWasm = await readFile(new URL('../node_modules/sql.js/dist/sql-wasm-browser.wasm', import.meta.url));

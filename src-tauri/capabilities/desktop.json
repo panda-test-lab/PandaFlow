@@ -15,6 +15,7 @@
       "allow": [{ "path": "$APPLOG/**" }]
     },
     "core:path:default",
+    "shell:allow-open",
     "updater:default"
   ]
 }

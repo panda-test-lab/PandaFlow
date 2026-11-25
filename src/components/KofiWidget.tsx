@@ -1,4 +1,17 @@
 import React, { useEffect } from 'react';
+import { open } from '@tauri-apps/plugin-shell';
+import { isTauriEnvironment } from '../services/tauriService';
+
+export const openKofiInDefaultBrowser = (
+  event: React.MouseEvent<HTMLAnchorElement>,
+  id: string,
+) => {
+  if (!isTauriEnvironment()) return;
+  event.preventDefault();
+  void open(`https://ko-fi.com/${encodeURIComponent(id)}`).catch((error: unknown) => {
+    console.error('Ko-Fi could not be opened in the default browser:', error);
+  });
+};
 
 interface KofiWidgetProps {
   text?: string;
@@ -70,6 +83,7 @@ export const KofiWidget: React.FC<KofiWidgetProps> = ({
         href={`https://ko-fi.com/${id}`}
         target="_blank"
         rel="noopener noreferrer"
+        onClick={(event) => openKofiInDefaultBrowser(event, id)}
         style={{ backgroundColor: color }}
         className={`kofi-button group inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-slate-950 font-bold text-xs shadow-md shadow-amber-500/20 hover:brightness-105 hover:scale-[1.01] active:scale-[0.98] transition-all cursor-pointer select-none ${fullWidth ? 'w-full justify-center' : ''} ${buttonClassName}`}
         title="Support me on ko-fi.com"

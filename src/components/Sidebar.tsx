@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { useTauriApp } from '../hooks/useTauriApp';
 import { Semester } from '../types';
-import { KofiWidget } from './KofiWidget';
+import { KofiWidget, openKofiInDefaultBrowser } from './KofiWidget';
 
 interface SidebarProps {
   activeTab: string;
@@ -248,6 +248,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               href="https://ko-fi.com/H0G826CZMP"
               target="_blank"
               rel="noopener noreferrer"
+              onClick={(event) => openKofiInDefaultBrowser(event, 'H0G826CZMP')}
               className="p-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 transition-all hover:scale-105"
               title="Unterstütze meine Arbeit auf Ko-Fi"
             >

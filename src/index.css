@@ -46,6 +46,67 @@
   border-color: #14b8a6;
 }
 
+.cornell-reference-draft {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 0.55rem;
+  background: rgba(15, 23, 42, 0.7);
+}
+
+.cornell-question-draft {
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.cornell-keyword-draft {
+  border-color: rgba(34, 211, 238, 0.3);
+}
+
+.cornell-question-draft .cornell-mark-button {
+  border-color: #f59e0b;
+  background: #f59e0b;
+  color: #0f172a;
+}
+
+.cornell-keyword-draft .cornell-mark-button {
+  border-color: #22d3ee;
+  background: #22d3ee;
+  color: #0f172a;
+}
+
+.cornell-reference-draft .cornell-mark-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.cornell-reference-draft .cornell-draft-input,
+.cornell-reference-draft .cornell-draft-textarea {
+  grid-column: 1 / -1;
+}
+
+.cornell-reference-draft .cornell-mark-button {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+
+.cornell-draft-textarea {
+  min-height: 48px;
+  resize: vertical;
+  border: 1px solid rgba(51, 65, 85, 0.9);
+  border-radius: 0.45rem;
+  background: #020617;
+  color: #e2e8f0;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.72rem;
+  outline: none;
+}
+
+.cornell-draft-textarea:focus {
+  border-color: #14b8a6;
+}
+
 .cornell-page {
   width: 100%;
   max-width: 820px;
@@ -53,8 +114,8 @@
   aspect-ratio: 210 / 297;
   margin-inline: auto;
   display: grid;
-  grid-template-rows: 82px minmax(420px, 1fr) minmax(90px, 15%);
-  overflow: hidden;
+  grid-template-rows: 82px minmax(420px, 1fr) auto;
+  overflow: visible;
   border: 1px solid #475569;
   border-radius: 4px;
   background: #fff;
@@ -150,8 +211,16 @@
 
 .cornell-cue-card strong {
   display: block;
-  font-family: ui-monospace, monospace;
+  min-width: 0;
+  padding: 2px 4px;
+  border-radius: 3px;
   font-size: 9px;
+  line-height: 1.25;
+}
+
+.cornell-cue-card > span {
+  display: block;
+  margin-top: 3px;
 }
 
 .cornell-note-column {
@@ -181,6 +250,183 @@
   white-space: pre-wrap;
 }
 
+.cornell-editor-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 420px;
+}
+
+.cornell-editor-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+  padding: 5px 8px;
+  border-bottom: 1px solid #cbd5e1;
+  background: #f1f5f9;
+}
+
+.cornell-editor-toolbar button,
+.cornell-format-color {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 25px;
+  height: 24px;
+  padding: 2px 4px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  background: #fff;
+  color: #334155;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.cornell-editor-toolbar button:hover,
+.cornell-format-color:hover {
+  background: #e2e8f0;
+}
+
+.cornell-editor-toolbar button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.cornell-rich-editor ul {
+  list-style: disc;
+  padding-left: 1.5em;
+}
+
+.cornell-rich-editor ol {
+  list-style: decimal;
+  padding-left: 1.5em;
+}
+
+.cornell-rich-editor li {
+  min-height: 1.4em;
+}
+
+.cornell-format-color input {
+  width: 16px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.cornell-toolbar-divider {
+  width: 1px;
+  height: 18px;
+  margin: 0 3px;
+  background: #cbd5e1;
+}
+
+.cornell-rich-editor {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.cornell-rich-editor:empty::before {
+  content: attr(data-placeholder);
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.cornell-rich-editor h1,
+.cornell-rich-editor h2,
+.cornell-rich-editor h3 {
+  margin: 0.35em 0;
+  font-family: inherit;
+  line-height: 1.35;
+}
+
+.cornell-rich-editor h1 { font-size: 1.35em; font-weight: 800; }
+.cornell-rich-editor h2 { font-size: 1.2em; font-weight: 700; }
+.cornell-rich-editor h3 { font-size: 1.08em; font-weight: 600; }
+
+.cornell-markdown-preview {
+  color: #172033;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+
+.cornell-markdown-preview h1,
+.cornell-markdown-preview h2,
+.cornell-markdown-preview h3,
+.cornell-markdown-preview h4,
+.cornell-markdown-preview h5,
+.cornell-markdown-preview strong,
+.cornell-markdown-preview em,
+.cornell-markdown-preview p,
+.cornell-markdown-preview li,
+.cornell-markdown-preview blockquote {
+  color: #172033;
+}
+
+.cornell-markdown-preview h1,
+.cornell-markdown-preview h2,
+.cornell-markdown-preview h3 {
+  margin-top: 0.4em;
+  margin-bottom: 0.25em;
+}
+
+.cornell-markdown-preview .markdown-formula-delimiters {
+  display: inline;
+  color: inherit;
+  font: inherit;
+  white-space: pre-wrap;
+}
+
+.cornell-markdown-preview .markdown-formula-delimiter {
+  color: inherit;
+  font: inherit;
+}
+
+.cornell-markdown-preview .markdown-inline-formula {
+  display: inline !important;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  vertical-align: baseline;
+  white-space: pre-wrap;
+}
+
+.cornell-markdown-preview .markdown-block-formula {
+  display: block !important;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  text-align: left;
+  white-space: pre-wrap;
+}
+
+.cornell-markdown-preview .markdown-block-formula > span {
+  display: inline;
+  color: inherit;
+  font: inherit;
+  letter-spacing: normal;
+  text-align: left;
+  white-space: pre-wrap;
+}
+
 .cornell-summary {
   min-height: 90px;
   padding: 10px 18px;
@@ -200,6 +446,10 @@
   color: #334155;
   font-size: 11px;
   line-height: 1.45;
+}
+
+.cornell-summary-textarea {
+  min-height: 180px;
 }
 
 @media (max-width: 640px) {

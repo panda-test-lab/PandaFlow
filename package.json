@@ -1,7 +1,7 @@
 {
   "name": "pandaflow",
   "private": true,
-  "version": "1.2.0",
+  "version": "1.2.1",
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
@@ -15,7 +15,7 @@
   "dependencies": {
     "@tauri-apps/api": "^2.12.4",
     "@tauri-apps/plugin-fs": "^2.7.1",
-    "@tauri-apps/plugin-shell": "^2.5.0",
+    "@tauri-apps/plugin-shell": "^2.6.0",
     "@tauri-apps/plugin-updater": "^2.14.0",
     "@vitejs/plugin-react": "^6.1.1",
     "canvas-confetti": "^1.9.4",
